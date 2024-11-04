@@ -22,6 +22,14 @@
 
 # Description in English
 
-Will be written later
+*Will be written later*
+
+## Summary  
 
 [Bioinformatics Institute Biostatistics course](https://bioinf.me/education/stat) 2024  
+
+## Contributors 
+
+**Students**
+
+**Tutors**
