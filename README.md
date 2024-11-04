@@ -1,4 +1,4 @@
-# Курсовой проект по биостатистике \/ Biostatistics term project  
+# Term project in Biostatistics \/ Курсовой проект по биостатистике  
 
 *Please find description in English [below](#description-in-english)*  
 
