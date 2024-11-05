@@ -4,7 +4,7 @@
 
 ## Описание проекта
 
-Репозиторий содержит материалы курсового проекта, выполняемого в 2024 году при обучении на [программе](https://bioinf.me/education/stat) "Биостатистика и анализ медицинских данных" Института Биоинформатики. 
+Репозиторий содержит материалы курсового проекта, выполняемого в 2024 году при обучении на программе ["Биостатистика и анализ медицинских данных"](https://bioinf.me/education/stat) Института Биоинформатики. 
 
 **Тема проекта:** Оценка влияния гемосорбции на исходы и динамику клинико-лабораторных показателей при лечении пациентов с бактериальным сепсисом.  
 
@@ -22,11 +22,11 @@
 
 # Description in English
 
-*Will be written later*
+*Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum*
 
 ## Summary  
 
-[Bioinformatics Institute Biostatistics course](https://bioinf.me/education/stat) 2024  
+This repository contains materials of the 2024 term project for the Biostatistics educational program of the [Bioinformatics Institute](https://bioinf.me/en).
 
 ## Contributors 
 
