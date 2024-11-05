@@ -26,7 +26,7 @@
 
 ## Summary  
 
-This repository contains materials of the 2024 term project for the Biostatistics educational program of the [Bioinformatics Institute](https://bioinf.me/en).
+This repository contains materials of the term project which was performed at the 2024 Biostatistics educational program of the [Bioinformatics Institute](https://bioinf.me/en).  
 
 ## Contributors 
 
