@@ -1,3 +1,7 @@
+# Primary data
+sepsis_HA_df_v1.rds
+sepsis_HA_df_v1.zip
+
 # History files
 .Rhistory
 .Rapp.history
