@@ -2,6 +2,9 @@
 sepsis_HA_df_v1.rds
 sepsis_HA_df_v1.zip
 
+# Obsolete file versions
+*.bak
+
 # History files
 .Rhistory
 .Rapp.history
