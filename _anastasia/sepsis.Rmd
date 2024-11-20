@@ -1,0 +1,123 @@
+---
+title: "sepsis_project"
+author: "Anastasiia Potamoshneva"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    keep_md: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(gtsummary)
+```
+
+# Reading data
+
+```{r, include=FALSE}
+sepsis <- readRDS("C:\\Users\\user\\RStudio_projects\\data_sepsis\\sepsis_HA_df_v1.rds") 
+
+```
+
+```{r, include=FALSE}
+summary(sepsis)
+```
+
+# Adjusting variables to an appropriate format
+
+```{r}
+# Changing into factor
+
+sepsis <- sepsis %>% 
+  ungroup() %>% 
+  mutate(
+  across(c(study_id, time_point, sex, shock_T0, MV_T0, AKI_T0, shock_first_end_status, ICU_first_end_status, MV_first_end_status), ~ as.factor(.x))) 
+
+# Convert height to cm
+
+sepsis <- sepsis %>%
+  mutate(
+    height = ifelse(study_id == "CL_Sep_3C_6", height * 100, height)
+  )
+```
+
+
+```{r, include=FALSE}
+sepsis %>% glimpse()
+```
+
+# Renaming variables
+
+```{r}
+
+#Renaming columns
+
+sepsis <- sepsis %>% 
+  rename_with(function(x) x %>% 
+                str_replace("age", "Age, years") %>% 
+                str_replace("weight", "Weight, kg") %>%
+                str_replace("height", "Height, cm") %>%
+                str_replace("time_point", "Time point, days") %>% 
+                str_replace("BMI", "BMI, kg/m^2") %>% 
+                str_replace("age", "Age, years") %>% 
+                str_replace("PaO2", "PaO2, mmHg") %>% 
+                str_replace("FiO2", "FiO2, %") %>% 
+                str_replace("lactate", "Lactate, mmol/L") %>% 
+                str_replace("PaO2", "PaO2, mmHg") %>% 
+                str_replace("WBC", "WBC, *10^9/L") %>% 
+                str_replace("^NEU$", "NEU, *10^9/L") %>% 
+                str_replace("^NEUr$", "NEUr, %") %>% 
+                str_replace("LYM$", "LYM, *10^9/L") %>% 
+                str_replace("LYMr$", "LYMr, %") %>% 
+                str_replace("PLT", "PLT, *10^9/L") %>% 
+                str_replace("aPTT", "aPTT, s") %>% 
+                str_replace("ATIII", "ATIII, %") %>% 
+                str_replace("fibrinogen", "Fibrinogen, g/L") %>% 
+                str_replace("DDImer", "DDimer, ng/mL") %>% 
+                str_replace("diuresis", "Diuresis, ml") %>% 
+                str_replace("creatinine", "Creatinine, mcmol/L") 
+                
+                
+              )
+              
+
+# Renaming values in columns
+
+sepsis <- sepsis %>% 
+  mutate(
+    sex = recode(sex,
+                 "м" = "male",
+                 "ж" = "female",
+                 "мужской" = "male",
+                 "женский" = "female")
+  )
+```
+
+# Descriptive stats for numeric variables
+
+```{r}
+sepsis %>%
+  select(where(is.numeric), study_id) %>% 
+  tbl_summary(by=study_id,
+              type = list(all_continuous()  ~ "continuous2"),
+              statistic = list(all_continuous() ~ c("{N_nonmiss}",
+                                                    "{N_miss}",
+                                                    "{mean} ± {sd}",
+                                                    "{median} [{p25};{p75}]")),
+              missing = "no") %>% 
+  add_stat_label(label = list(all_continuous() ~ c("Non-missed",
+                                                   "Missed",
+                                                   "Mean ± SD",
+                                                   "Median [Q1:Q3]")))
+
+```
+
+# Descriptive stats for categorical variables
+
+```{r}
+sepsis %>%
+  select(where(is.factor), -c(study_patient_id)) %>% 
+  tbl_summary(by=study_id)
+```
+
