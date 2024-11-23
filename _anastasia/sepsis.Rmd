@@ -56,6 +56,7 @@ sepsis %>% glimpse()
 sepsis <- sepsis %>% 
   rename_with(function(x) x %>% 
                 str_replace("age", "Age, years") %>% 
+                str_replace("sex", "Sex") %>% 
                 str_replace("weight", "Weight, kg") %>%
                 str_replace("height", "Height, cm") %>%
                 str_replace("time_point", "Time point, days") %>% 
@@ -64,7 +65,7 @@ sepsis <- sepsis %>%
                 str_replace("PaO2", "PaO2, mmHg") %>% 
                 str_replace("FiO2", "FiO2, %") %>% 
                 str_replace("lactate", "Lactate, mmol/L") %>% 
-                str_replace("PaO2", "PaO2, mmHg") %>% 
+                str_replace("PaO2$", "PaO2, mmHg") %>% 
                 str_replace("WBC", "WBC, *10^9/L") %>% 
                 str_replace("^NEU$", "NEU, *10^9/L") %>% 
                 str_replace("^NEUr$", "NEUr, %") %>% 
@@ -86,13 +87,38 @@ sepsis <- sepsis %>%
 
 sepsis <- sepsis %>% 
   mutate(
-    sex = recode(sex,
+    Sex = recode(Sex,
                  "м" = "male",
                  "ж" = "female",
                  "мужской" = "male",
                  "женский" = "female")
   )
 ```
+
+# Descriptive stats for Efferon and Control groups
+
+```{r}
+sepsis  %>% 
+  mutate(
+  combined_efferon = case_when(
+    treatment %in% c("efferon LPS", "efferon CT")~"Efferon",
+    treatment == "base" ~ "Control"),
+  combined_efferon = factor(combined_efferon, levels = c("Efferon", "Control"))
+) %>% 
+  select(everything(), -c(study_id, study_patient_id, treatment, "Time point, days", EAA)) %>% 
+ 
+  tbl_summary(by=combined_efferon, 
+              statistic = list(all_continuous() ~ c("{median} [{p25};{p75}]")),
+              missing = "no") %>% 
+  modify_table_body(
+    filter, !(paste(variable, label) %in% c(
+      "shock_T0 FALSE",
+      "MV_T0 FALSE",
+      "AKI_T0 FALSE"
+    ))) %>% 
+  add_p()
+```
+
 
 # Descriptive stats for numeric variables
 
@@ -120,4 +146,5 @@ sepsis %>%
   select(where(is.factor), -c(study_patient_id)) %>% 
   tbl_summary(by=study_id)
 ```
+
 
