@@ -110,7 +110,7 @@ summary_stats_cat_table <- flextable(summary_stats_cat_table) %>%
   border_remove() %>%
   border_outer(part = "all", border = officer::fp_border(color = "black", width = 1)) %>%
   border_inner_h(border = fp_border(color = "black", width = 1)) %>%
-  border_inner_v(border = fp_border(color = "black", width = 1)) %>% merge_v(j = "Variable")
+  border_inner_v(border = fp_border(color = "black", width = 1)) %>% merge_v(j = "Переменная")
 
 summary_stats_cat_table
 
