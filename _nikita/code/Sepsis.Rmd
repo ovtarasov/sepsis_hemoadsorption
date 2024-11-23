@@ -76,8 +76,6 @@ summary_stats_table
 
 ```{r}
 
-
-
 summary_stats_cat <- sepsis_clear %>%
   select(-study_id, -study_patient_id) %>%
   select(where(~ !is.numeric(.))) %>%
@@ -85,16 +83,16 @@ summary_stats_cat <- sepsis_clear %>%
   filter(!is.na(Category)) %>%
   group_by(Variable, Category) %>%
   summarise(
-    Count = n(),
+    Количество = n(),
     .groups = 'drop_last'
   ) %>%
   mutate(
-    Total = sum(Count),
-    Proportion = Count / Total
+    Общее = sum(Количество),
+    Доля = Количество / Общее
   ) %>%
   rowwise() %>%
   mutate(
-    CI = list(BinomCI(Count, Total, conf.level = 0.95, method = "wilson"))
+    CI = list(BinomCI(Количество, Общее, conf.level = 0.95, method = "wilson"))
   ) %>%
   ungroup() %>%
   mutate(
@@ -104,14 +102,15 @@ summary_stats_cat <- sepsis_clear %>%
   select(-CI)
 
 
-summary_stats_cat_table <- summary_stats_cat %>%
-  select(Variable, Category, Count, Total, Proportion, `95% ДИ Нижняя граница`, `95% ДИ Верхняя граница`)
+summary_stats_cat_table <- summary_stats_cat %>% 
+  rename("Переменная" = Variable, "Категория" = Category) %>% 
+  select(Переменная, Категория, Количество, Общее, Доля, `95% ДИ Нижняя граница`, `95% ДИ Верхняя граница`)
 
 summary_stats_cat_table <- flextable(summary_stats_cat_table) %>% 
   border_remove() %>%
   border_outer(part = "all", border = officer::fp_border(color = "black", width = 1)) %>%
-  border_inner_h(border = officer::fp_border(color = "black", width = 1)) %>%
-  border_inner_v(border = officer::fp_border(color = "black", width = 1)) %>% merge_v(j = "Variable")
+  border_inner_h(border = fp_border(color = "black", width = 1)) %>%
+  border_inner_v(border = fp_border(color = "black", width = 1)) %>% merge_v(j = "Variable")
 
 summary_stats_cat_table
 
