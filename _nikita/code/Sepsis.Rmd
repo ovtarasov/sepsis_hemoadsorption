@@ -16,7 +16,7 @@ library(DescTools)
 
 
 ```{r}
-sepsis <- read_rds("sepsis_HA_df_v1.rds") %>% glimpse ()
+sepsis <- read_rds("../data/rawdata/sepsis_HA_df_v1.rds") %>% glimpse ()
 ```
 # Чистка датасета
 
@@ -30,13 +30,13 @@ sepsis_clear <- sepsis %>%
 
 # Посчитаем описательные статистики
 
-## Количественные переменные
+## Количественные переменные только для 0 временной точки
 
 ```{r}
 
 ft_num <- sepsis_clear %>%
-  select(-study_id, -study_patient_id) %>%
-  select(where(is.numeric)) %>%
+  filter(time_point == 0) %>%
+  select(where(is.numeric), -time_point) %>%
   summarise(across(everything(), list(
     "Количество значений" = ~ as.character(sum(!is.na(.))),
     "Количество пропущенных значений" = ~ as.character(sum(is.na(.))),
@@ -72,13 +72,13 @@ summary_stats_table
 
 ```
 
-## Качественные данные
+## Качественные данные только для 0 временной точки
 
 ```{r}
 
 summary_stats_cat <- sepsis_clear %>%
-  select(-study_id, -study_patient_id) %>%
-  select(where(~ !is.numeric(.))) %>%
+  filter(time_point == 0) %>%
+  select(where(~ !is.numeric(.)), -study_id, -study_patient_id) %>%
   pivot_longer(cols = everything(), names_to = "Variable", values_to = "Category") %>%
   filter(!is.na(Category)) %>%
   group_by(Variable, Category) %>%
