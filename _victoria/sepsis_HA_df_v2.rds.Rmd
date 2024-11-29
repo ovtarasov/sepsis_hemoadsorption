@@ -1,0 +1,154 @@
+---
+title: "sepsis_HA_df_v2"
+author: "Uvarova Victoria"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, error = FALSE)
+
+library(tidyverse)
+
+library(gtsummary)
+set_gtsummary_theme(list("style_number-arg:big.mark" = "")) #чтобы в качестве разделителя тысячи не использовалась запятая, иначе ломается расчет Absolute Difference
+```
+
+## Загружен датасет sepsis_HA_df_v2
+
+```{r}
+sepsis_HA_df_v2 <- readRDS("sepsis_HA_df_v2.rds")
+```
+
+## Чистка данных
+
+### Создан датасет **sepsis_HA_df_v2_cleaned** в котором
+
+1.  удалены строки с NA в treatment и в sex
+
+2.  переменные character и logical преобразованы в factor
+
+3.  приведена в однообразный вид переменная sex: ж и женский = female and м и мужской = male
+
+4.  у пациентки study_id == "L_mSep_2dC_11" & study_patient_id == "2-07" age == 1990 заменен на 33. А рост 95 заменен на NA.
+
+5.  в исследовании CL_Sep_3C_6 рост переведен в см
+
+6.  в BMI NA заменены на расчетные значения, если есть данные по росту и весу
+
+```{r}
+sepsis_HA_df_v2_cleaned <- sepsis_HA_df_v2 %>%  ungroup() %>% filter(!is.na(treatment)) %>% filter(!is.na(sex)) %>% 
+  mutate(across(c(study_id, study_patient_id, time_point, shock_T0, MV_T0, AKI_T0), as.factor)) %>% 
+  mutate(sex = recode(sex, "м" = "male", "ж" = "female", "мужской" = "male", "женский" = "female")) %>% 
+  mutate(
+    age = if_else(study_id == "L_mSep_2dC_11" & study_patient_id == "2-07" & age == 1990, 33, age),
+    height = if_else(study_id == "L_mSep_2dC_11" & study_patient_id == "2-07", NA_real_, height)) %>% 
+  mutate(height = ifelse(study_id == "CL_Sep_3C_6", height * 100, height)) %>% 
+  mutate(BMI = if_else(is.na(BMI) & !is.na(weight) & !is.na(height), weight / ((height / 100) ^ 2), BMI))
+summary(sepsis_HA_df_v2_cleaned)
+
+```
+
+### Точка 0
+
+1.  датасет sepsis_HA_df_v2_cleaned проверен, что для каждого пациента есть точка 0
+
+```{r}
+study_patient_check <- sepsis_HA_df_v2_cleaned %>%
+  group_by(study_patient_id) %>%
+  summarize(has_time_point_0 = any(time_point == 0)) %>%
+  ungroup()
+all_have_time_point_0 <- all(study_patient_check$has_time_point_0)
+print(all_have_time_point_0)
+```
+
+2.  создан датасет **sepsis_HA_df_v2_time_point_0** с разделением на лечению на Efferon и Control, отфильтрован по точке 0
+
+3. убраны 
+shock_dur_T0_first_end -- продолжительность первого шока до завершения/гибели пациента
+shock_first_end_status -- статус завершения первого шока
+AKI_dur_T0_first_end, AKI_first_end_status -- острое почечное повреждение
+ICU_dur_T0_first_end, ICU_first_end_status -- нахождение пациента в реанимации (ОРИТ)
+MV_dur_T0_first_end, MV_first_end_status -- инвазивная ИВЛ
+
+4. добавлен столбец Absolute Difference. Разделение на опыт и контроль 
+
+два варианта вывода числовых данных: только Median [Q1;Q3] или Median [Q1;Q3] + N Missing и Non-missing
+
+```{r}
+sepsis_HA_df_v2_time_point_0 <- sepsis_HA_df_v2_cleaned %>%
+  mutate(combined_efferon = case_when(treatment %in% c("efferon LPS", "efferon CT") ~ "Efferon", treatment == "base" ~ "Control"), combined_efferon = factor(combined_efferon, levels = c("Efferon", "Control"))) %>% 
+  filter(time_point == 0) %>% 
+  select(everything(), -c(shock_dur_T0_first_end, shock_first_end_status, AKI_dur_T0_first_end, AKI_first_end_status, ICU_dur_T0_first_end, ICU_first_end_status, MV_dur_T0_first_end, MV_first_end_status)) 
+
+sepsis_HA_df_v2_time_point_0 %>% select(everything(), -c(study_id, study_patient_id, treatment, time_point)) %>% 
+  tbl_summary(
+    by = combined_efferon,
+    type = all_continuous() ~ "continuous2",
+    statistic = list(
+      all_continuous() ~ c("{median} [{p25};{p75}]","{N_miss}","{N_nonmiss}"),
+      # all_continuous() ~ c("{median} [{p25};{p75}]"),
+      all_categorical() ~ c("{n} ({p}%)")), missing = "no") %>%
+  modify_table_body(~ .x %>%
+      mutate(absolute_difference = case_when(!is.na(stat_1) & !is.na(stat_2) & grepl("\\(", stat_1) ~
+            abs(as.numeric(gsub(" \\(.*\\)", "", stat_1)) - 
+                as.numeric(gsub(" \\(.*\\)", "", stat_2))),
+            
+          !is.na(stat_1) & !is.na(stat_2) & grepl("\\[.*\\]", stat_1) ~
+            abs(as.numeric(gsub("\\[.*\\]", "", stat_1)) - 
+                as.numeric(gsub("\\[.*\\]", "", stat_2))),
+          
+          TRUE ~ NA_real_))) %>%
+  modify_header(absolute_difference = "**Absolute Difference**") %>% 
+  modify_caption("**Table 1. Comparison of Control and Efferon Groups (Time Point 0)**")
+
+```
+
+5. Разделение по исследованиям
+
+```{r}
+sepsis_HA_df_v2_time_point_0 %>%
+  mutate(group = paste(study_id, combined_efferon, sep = " - ")) %>%
+  select(everything(), -c(study_id, study_patient_id, treatment, time_point, combined_efferon)) %>%
+  tbl_summary(
+    by = group,
+    type = all_continuous() ~ "continuous2",
+    statistic = list(
+      all_continuous() ~ c("{median} [{p25};{p75}]","{N_miss}","{N_nonmiss}"),
+      all_categorical() ~ c("{n} ({p}%)")),missing = "no") %>% 
+  modify_caption("**Table 2. Comparison of Control and Efferon Groups Across Studies (Time Point 0)**")
+```
+
+## Анализ конечных точек (самые важные показатели)
+
+### Отбор переменных 
+
+1. Создан датасет **sepsis_HA_df_v2_end_points** с самыми важными (?) показателями для анализа
+
+2. Таблица 3А Продолжительности первичных состояний, успешность выхода из них
+
+```{r}
+sepsis_HA_df_v2_end_points <- sepsis_HA_df_v2_cleaned %>%
+  mutate(combined_efferon = case_when(treatment %in% c("efferon LPS", "efferon CT") ~ "Efferon", treatment == "base" ~ "Control"), combined_efferon = factor(combined_efferon, levels = c("Efferon", "Control"))) %>% 
+  select(c(study_id, study_patient_id, time_point,
+           combined_efferon,
+           SOFA, VIS2020, IL_6, LYM, LYMr, PF_ratio,
+           shock_dur_T0_first_end, shock_first_end_status,
+           AKI_dur_T0_first_end, AKI_first_end_status,
+           ICU_dur_T0_first_end, ICU_first_end_status,
+           MV_dur_T0_first_end, MV_first_end_status)) 
+  
+sepsis_HA_df_v2_end_points %>%
+  filter(time_point == 0) %>%
+  select(everything(), -c(study_id, study_patient_id, time_point, SOFA, VIS2020, IL_6, LYM, LYMr, PF_ratio)) %>% 
+  tbl_summary(
+    by = combined_efferon,
+    type = all_continuous() ~ "continuous2",
+    statistic = list(
+      all_continuous() ~ c("{median} [{p25};{p75}]","{N_miss}","{N_nonmiss}"),
+      # all_continuous() ~ c("{median} [{p25};{p75}]"),
+      all_categorical() ~ c("{n} ({p}%)")), missing = "no") %>% add_p() %>% 
+  modify_caption("**Table 3A. Comparison of Control and Efferon Groups: Duration of Primary Conditions and Success of Recovery**")
+
+```
+
