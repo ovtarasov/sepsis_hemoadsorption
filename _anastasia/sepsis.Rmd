@@ -11,12 +11,13 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(gtsummary)
+library(stringr)
 ```
 
 # Reading data
 
 ```{r, include=FALSE}
-sepsis <- readRDS("C:\\Users\\user\\RStudio_projects\\data_sepsis\\sepsis_HA_df_v1.rds") 
+sepsis <- readRDS("C:\\Users\\user\\RStudio_projects\\data_sepsis\\sepsis_HA_df_v2.rds") 
 
 ```
 
@@ -27,7 +28,8 @@ summary(sepsis)
 # Adjusting variables to an appropriate format
 
 ```{r}
-# Changing into factor
+
+# Convert factor variables into factor
 
 sepsis <- sepsis %>% 
   ungroup() %>% 
@@ -38,20 +40,63 @@ sepsis <- sepsis %>%
 
 sepsis <- sepsis %>%
   mutate(
-    height = ifelse(study_id == "CL_Sep_3C_6", height * 100, height)
+    height = ifelse(study_id == "CL_Sep_3C_6" & !(study_patient_id %in% c("040", "041", "042")), height * 100, height)
   )
+
+# Add BMI where missing
+
+sepsis <- sepsis %>%
+  mutate(
+    BMI = ifelse(
+      is.na(BMI) & !is.na(weight) & !is.na(height), 
+      round(weight / (height / 100)^2, 1), 
+      BMI
+      )
+  )
+
+# Remove patient with erroneous age and height
+
+sepsis <- sepsis %>%
+  filter(study_patient_id != "2-07")
+
+# Replace MAP=0 with NA
+
+sepsis <- sepsis %>%
+  mutate(
+    MAP = ifelse(MAP == 0, NA, MAP)
+  )
+
+# Replace weight=19 with NA
+
+sepsis <- sepsis %>%
+  mutate(
+    weight = ifelse(study_patient_id == "R5-13", NA, weight)
+  )
+
+# Convert creatinine from mg/dL to mcmol/L
+
+sepsis <- sepsis %>%
+  mutate(
+    creatinine = ifelse(study_patient_id == "1-09" & time_point == "0", creatinine * 88.4, creatinine)
+  )
+
+# Leave rows with less than 70% NAs
+
+sepsis <- sepsis %>% filter(rowMeans(is.na(sepsis)) <= 0.7)
 ```
 
 
 ```{r, include=FALSE}
 sepsis %>% glimpse()
+
+sepsis %>% summary()
 ```
 
 # Renaming variables
 
 ```{r}
 
-#Renaming columns
+#Rename columns
 
 sepsis <- sepsis %>% 
   rename_with(function(x) x %>% 
@@ -62,10 +107,11 @@ sepsis <- sepsis %>%
                 str_replace("time_point", "Time point, days") %>% 
                 str_replace("BMI", "BMI, kg/m^2") %>% 
                 str_replace("age", "Age, years") %>% 
-                str_replace("PaO2", "PaO2, mmHg") %>% 
+                str_replace("MAP", "MAP, mmHg") %>% 
                 str_replace("FiO2", "FiO2, %") %>% 
                 str_replace("lactate", "Lactate, mmol/L") %>% 
                 str_replace("PaO2$", "PaO2, mmHg") %>% 
+                str_replace("PF_ratio", "PaO2/FiO2") %>% 
                 str_replace("WBC", "WBC, *10^9/L") %>% 
                 str_replace("^NEU$", "NEU, *10^9/L") %>% 
                 str_replace("^NEUr$", "NEUr, %") %>% 
@@ -75,15 +121,24 @@ sepsis <- sepsis %>%
                 str_replace("aPTT", "aPTT, s") %>% 
                 str_replace("ATIII", "ATIII, %") %>% 
                 str_replace("fibrinogen", "Fibrinogen, g/L") %>% 
-                str_replace("DDImer", "DDimer, ng/mL") %>% 
                 str_replace("diuresis", "Diuresis, ml") %>% 
-                str_replace("creatinine", "Creatinine, mcmol/L") 
-                
-                
+                str_replace("creatinine", "Creatinine, mcmol/L") %>% 
+                str_replace("urea", "Urea, mcmol/L") %>% 
+                str_replace("protein_total", "Total protein, g/L") %>% 
+                str_replace("albumin", "Albumin, g/L") %>% 
+                str_replace("bilirubin_total", "Total bilirubin, μmol/L") %>% 
+                str_replace("bilirubin_direct", "Direct bilirubin, μmol/L") %>% 
+                str_replace("AST", "AST, U/L") %>%  
+                str_replace("ALT", "ALT, U/L") %>% 
+                str_replace("LDH", "LDH, U/L") %>% 
+                str_replace("CRP", "CRP, mg/L") %>% 
+                str_replace("PCT", "PCT, μg/L") %>%
+                str_replace("ferritin", "Ferritin, μg/L") %>% 
+                str_replace("IL_6", "IL-6, pg/mL") 
               )
               
 
-# Renaming values in columns
+# Rename values in columns
 
 sepsis <- sepsis %>% 
   mutate(
@@ -93,19 +148,23 @@ sepsis <- sepsis %>%
                  "мужской" = "male",
                  "женский" = "female")
   )
+
+
 ```
 
 # Descriptive stats for Efferon and Control groups
 
 ```{r}
-sepsis  %>% 
+
+summary_table <-  sepsis  %>% 
   mutate(
   combined_efferon = case_when(
     treatment %in% c("efferon LPS", "efferon CT")~"Efferon",
     treatment == "base" ~ "Control"),
   combined_efferon = factor(combined_efferon, levels = c("Efferon", "Control"))
 ) %>% 
-  select(everything(), -c(study_id, study_patient_id, treatment, "Time point, days", EAA)) %>% 
+  filter(`Time point, days`== "0") %>% 
+  select(everything(), -c(study_id, study_patient_id, treatment, "Time point, days", DDimer, EAA, shock_dur_T0_first_end, shock_first_end_status, AKI_dur_T0_first_end, AKI_first_end_status, ICU_dur_T0_first_end, ICU_first_end_status, MV_dur_T0_first_end, MV_first_end_status, presepsin, IL_1b, IL_8, IL_10, TNFa, Ig_A, Ig_G, Ig_M)) %>% 
  
   tbl_summary(by=combined_efferon, 
               statistic = list(all_continuous() ~ c("{median} [{p25};{p75}]")),
@@ -115,16 +174,53 @@ sepsis  %>%
       "shock_T0 FALSE",
       "MV_T0 FALSE",
       "AKI_T0 FALSE"
-    ))) %>% 
-  add_p()
+    ))) 
+
+table_body <- as_tibble(summary_table$table_body)
+
+table_body <- table_body %>%
+  mutate(
+    stat_1 = gsub(",", "", stat_1),
+        stat_2 = gsub(",", "", stat_2),
+    Difference = case_when(
+      stat_1 == "NA [NA;NA]" | stat_2 == "NA [NA;NA]" ~ {
+        "NA"
+      },
+      
+      var_type == "continuous" & !is.na(stat_1) & !is.na(stat_2) ~ {
+        
+        median_1 <- as.numeric(str_extract(stat_1, "^[^\\[]+")) 
+        median_2 <- as.numeric(str_extract(stat_2, "^[^\\[]+"))
+        as.character(round(median_1 - median_2, 2))
+      },
+      var_type == "categorical" & !is.na(stat_1) & !is.na(stat_2)~ {
+        count_1 <- as.numeric(str_extract(stat_1, "^[^\\(]+"))
+        count_2 <- as.numeric(str_extract(stat_2, "^[^\\(]+"))
+         paste0(round(100 * (count_1 - count_2) / count_2, 2), "%")
+      },
+      
+    )
+  )
+
+summary_table <- summary_table %>%
+  modify_table_body(
+    ~ .x %>% left_join(select(table_body, variable, label, Difference), by = c("variable", "label"))
+  ) %>%
+  modify_header(
+    Difference ~ "**Difference**" 
+  )
+summary_table
+
 ```
 
 
-# Descriptive stats for numeric variables
+# Descriptive stats for Studies comparison
 
 ```{r}
+
 sepsis %>%
-  select(where(is.numeric), study_id) %>% 
+      filter(`Time point, days`== "0") %>% 
+  select(everything(), -c(study_patient_id, "Time point, days", DDimer, EAA, shock_dur_T0_first_end, shock_first_end_status, AKI_dur_T0_first_end, AKI_first_end_status, ICU_dur_T0_first_end, ICU_first_end_status, MV_dur_T0_first_end, MV_first_end_status, presepsin, IL_1b, IL_8, IL_10, TNFa, Ig_A, Ig_G, Ig_M)) %>% 
   tbl_summary(by=study_id,
               type = list(all_continuous()  ~ "continuous2"),
               statistic = list(all_continuous() ~ c("{N_nonmiss}",
@@ -137,14 +233,7 @@ sepsis %>%
                                                    "Mean ± SD",
                                                    "Median [Q1:Q3]")))
 
-```
 
-# Descriptive stats for categorical variables
-
-```{r}
-sepsis %>%
-  select(where(is.factor), -c(study_patient_id)) %>% 
-  tbl_summary(by=study_id)
 ```
 
 
