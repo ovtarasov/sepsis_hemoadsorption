@@ -1,0 +1,287 @@
+---
+title: "Sepsis_Hemosorbtion project, Oleg's part"
+author: "Oleg Tarasov"
+date: "`r Sys.Date()`"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, error = TRUE)
+
+library(tidyverse)
+library(ggpubr)
+library(ggbiplot)
+# library(factoextra)
+# library(FactoMineR)
+library(pheatmap)
+library(gtsummary)
+library(GGally)
+
+# theme_custom <- theme(
+#    axis.text = element_text(size = 16),
+#    axis.title = element_text(size = 20),
+#    legend.title = element_text(size = 20),
+#    legend.text = element_text(size = 16),
+#    strip.text = element_text(size = 16)
+#  )
+```
+## Загрузка данных 
+
+Данные: `../data/sepsis_HA_df_v2.rds`  
+
+Добавлен сквозной уникальный идентификатор пациента `unic_patient_id` в виде `study_id_study_patient_id`  
+
+```{r read_data}
+sepsis_HA_df <- readRDS("../data/sepsis_HA_df_v2.rds")
+
+# Создание уникальных идентификаторов
+
+sepsis_HA_df <- sepsis_HA_df %>% 
+  mutate(unic_patient_id = paste(study_id, study_patient_id, sep = "_"), .after = study_patient_id)
+```
+
+## Чистка данных  
+
+*Для синхронизации частично использованы наработки Виктории по очистке данных*  
+
+### Первичная очистка и трансформация  
+
+Создан датасет `sepsis_HA_df_v2_cleaned`, в котором:  
+1.    удалены строки с `NA` в `treatment` и в `sex` -- выбыло 16 пациентов  
+2.    переменные `character` и `logical` (кроме `study_patient_id`) преобразованы в `factor`  
+3.    уровни факторов `study_id` и `unic_patient_id` заданы по порядку строк таблицы  
+4.    приведена в однообразный вид переменная `sex`: ("ж" | "женский") = "female" & ("м" и "мужской") = "male"  
+5.    у пациентки L_mSep_2dC_11_2-07 : `age` == 1990 заменен на 33, `height` == 95 заменен на `NA`  
+6.    в исследовании CL_Sep_3C_6 рост `height` переведен в см  
+7.    в `BMI` `NA` заменены на расчетные значения, если есть данные по росту и весу  
+8.    в `height` `NA` заменены на расчетные значения, если есть данные по ИМТ и весу  
+9.    из-за неполноты данных убраны показатели острого почечного повреждения: `AKI_T0, AKI_dur_T0_first_end, AKI_first_end_status`  
+10.   добавлена переменная `combined_efferon` с переименованием: `efferon LPS` | `efferon CT` &rarr; `Efferon`, `base` &rarr; `Control`  
+
+```{r primary_filtration}
+
+sepsis_HA_df_cleaned <- sepsis_HA_df %>%  
+  ungroup() %>% 
+  filter(!is.na(treatment)) %>% 
+  filter(!is.na(sex)) %>% 
+  mutate(across(c(study_id, unic_patient_id, time_point, shock_T0, MV_T0, AKI_T0), as.factor)) %>% 
+  mutate(study_id = fct_inorder(study_id)) %>%
+  mutate(unic_patient_id = fct_inorder(unic_patient_id)) %>%
+  mutate(sex = recode(sex, "м" = "male", "ж" = "female", "мужской" = "male", "женский" = "female")) %>% 
+  mutate(
+    age = if_else(unic_patient_id == "L_mSep_2dC_11_2-07" & age == 1990, 33, age),
+    height = if_else(study_id == "L_mSep_2dC_11_2-07", NA_real_, height)) %>% 
+  mutate(height = ifelse(study_id == "CL_Sep_3C_6", height * 100, height)) %>% 
+  mutate(BMI = if_else(is.na(BMI) & !is.na(weight) & !is.na(height), weight / ((height / 100) ^ 2), BMI)) %>%
+  mutate(height = if_else(!is.na(BMI) & !is.na(weight) & is.na(height), 100*sqrt(weight / BMI) , height)) %>%
+  select(everything(), -c(AKI_T0, AKI_dur_T0_first_end, AKI_first_end_status)) %>% # Исключение AKI
+  mutate(combined_efferon = case_when(treatment %in% c("efferon LPS", "efferon CT") ~ "Efferon", treatment == "base" ~ "Control"), 
+         .after = treatment,
+         combined_efferon = factor(combined_efferon, levels = c("Efferon", "Control")))
+```  
+
+```{r check_after_filtration, include = FALSE, eval = FALSE} 
+
+# Проверка данных после фильтрации
+
+summary(sepsis_HA_df_cleaned)
+
+# rm(sepsis_HA_df)
+
+# Проверка, что ID исследований идут по порядку -- ДА
+
+sum(as.numeric(sepsis_HA_df_cleaned$study_id) != sort(as.numeric(sepsis_HA_df_cleaned$study_id)))
+```
+
+### Точка 0  
+
+Создан датасет `sepsis_HA_df_time_0`, отфильтрован по точке 0  
+
+~~Убраны:~~  
+~~`shock_dur_T0_first_end` -- продолжительность первого шока до завершения/гибели пациента~~  
+~~`shock_first_end_status` -- статус завершения первого шока~~  
+~~`ICU_dur_T0_first_end, ICU_first_end_status` -- нахождение пациента в реанимации (ОРИТ)~~  
+~~`MV_dur_T0_first_end, MV_first_end_status` -- инвазивная ИВЛ~~  
+
+```{r}
+sepsis_HA_df_time_0 <- sepsis_HA_df_cleaned %>%
+    filter(time_point == 0) # %>% 
+# Исключение оставшихся переменных статуса
+#  select(everything(), -c(shock_dur_T0_first_end, shock_first_end_status, ICU_dur_T0_first_end, ICU_first_end_status, MV_dur_T0_first_end, MV_first_end_status)) 
+
+```
+
+## Общая визуализация данных и анализ пропущенных значений
+
+```{r missing_count1}
+
+# Замена информативных NA на затычки в переменных статуса
+
+sepsis_0_status <- sepsis_HA_df_time_0 %>%
+  mutate(across(contains("_dur_T0_first_end") | contains("_first_end_status"), 
+                function(x) x = if_else(is.na(MV_T0) == TRUE, as.character(x), replace_na(as.character(x), "ND"))
+                ))
+
+# Вектор и таблица числа пропущенных значений по переменным 
+
+count_NA_vector <- sort(colSums(is.na(sepsis_0_status)))
+count_NA_tibble <- tibble(`variables` = names(count_NA_vector), 
+                   `NA_count` = count_NA_vector)
+
+```
+
+```{r missing_pheatmap, include = FALSE, eval = FALSE}
+
+## Отрисовка тепловой карты NA с помощью pheatmap()
+
+# Создание матрицы
+
+sepsis_matrix <- sepsis_HA_df_time_0 %>% 
+  select(order(colSums(is.na(.)))) %>%
+  is.na() 
+sepsis_matrix <- t(1*sepsis_matrix)
+
+# Разметка по исследованиям (по общему порядковому номеру первого пациента из каждого из исследований)
+
+gaps_col <- c()
+for (i in 1:5) {
+  gaps_col <- c(gaps_col, 
+    which.max(fct_inorder(sepsis_HA_df_time_0$study_id) == levels(fct_inorder(sepsis_HA_time_0$study_id))[i])
+    )
+}
+
+# Разметка по числу NA в переменной (числа взяты по красоте картинки и как примерные четверть и половина всех пациентов)
+
+gaps_row <- c(
+which.max(sort(colSums(is.na(sepsis_HA_df_time_0))) > 15),
+which.max(sort(colSums(is.na(sepsis_HA_df_time_0))) > 30),
+which.max(sort(colSums(is.na(sepsis_HA_df_time_0))) > 65),
+which.max(sort(colSums(is.na(sepsis_HA_df_time_0))) > 140)
+)
+
+# Отрисовка тепловой карты
+
+# sepsis_heatmap <- # запись в переменную
+  pheatmap(sepsis_matrix, color = c("darkgrey", "lightgrey"), 
+         cluster_rows = F, cluster_cols = F, show_rownames = T, show_colnames = F,
+         gaps_col = gaps_col-1, gaps_row = gaps_row, 
+         legend_breaks = c(0,1), legend_labels = c("", "NA"),
+        # filename = "NA_heatmap.pdf", width = 12, height = 10, # запись в файл
+#         silent = T
+)
+
+# Сложно редактировать картинку дальше, для презентации пойдет вариант через ggplot2
+```
+
+```{r functions_heatmap_NA}
+
+## Отрисовка тепловой карты NA с помощью ggplot2
+
+# Создаем функции для модификации данных и отрисовки тепловой карты
+
+NA_tibble <- function(df, exclude = c("study_id", "study_patient_id", "unic_patient_id"), ...) {
+  NA_tibble <- df %>% 
+  select(order(colSums(is.na(.)))) %>%
+  mutate( across( !{{exclude}}, function(x) x %>% is.na() ) )  %>% 
+  pivot_longer(cols = !{{exclude}}, 
+               cols_vary = "slowest", 
+               names_to = "var",
+               values_to = "is.NA") %>%
+  mutate(var = fct_rev(fct_inorder(factor(var, ordered=TRUE)))) 
+  return(NA_tibble)
+}
+
+heatmap_NA <- function(NA_tibble = NA_tibble, 
+                       x = unic_patient_id, 
+                       y = var, 
+                       fill = is.NA, 
+                       fill_color = c("TRUE" = "lightgrey", "FALSE" = "darkgrey"), 
+                       ...) {
+  ggheatmap <- NA_tibble %>% 
+    ggplot() +
+    geom_tile(aes({{x}}, {{y}}, fill = {{fill}})) +
+  scale_fill_manual(values = {{fill_color}}) +
+  scale_y_discrete(name = NULL) +
+  theme_bw()  
+  return(ggheatmap)
+}
+```
+
+```{r plot_NA_heatmap, fig.height = 14, fig.width = 16}
+
+sepsis_NA_tibble <- sepsis_0_status %>% NA_tibble()
+sepsis_ggheatmap_base <- sepsis_NA_tibble %>% heatmap_NA()
+  
+#   
+
+study_vlines <- c()
+for (i in 1:5) {
+  study_vlines <- c(study_vlines, 
+    which.max(sepsis_NA_tibble$study_id == levels(sepsis_NA_tibble$study_id)[i])
+    )
+}
+
+sepsis_ggheatmap <- sepsis_ggheatmap_base +
+  geom_vline(xintercept = study_vlines[-1] - 0.5, 
+             linewidth = 0.5, 
+             colour = "darkgreen") +
+  geom_hline(yintercept = which(levels(sepsis_NA_tibble$var) %in% c("CRP", "PCT", "lactate"))-0.5,
+           linewidth = 0.5, 
+             colour = "red") +
+  scale_x_discrete(name = NULL,
+                   breaks = sepsis_NA_tibble$unic_patient_id[study_vlines],
+                   labels = c(levels(sepsis_NA_tibble$study_id)[-5], "1C_1"),
+                   position = "top") +
+  theme(legend.position='none', 
+        axis.ticks.x=element_blank(),
+        axis.text.x = element_text(hjust = c(-0.7,-0.4,-1,-0.4,0.1), size = 16, color = "black"),
+        axis.text.y = element_text(size = 14, color = "black")
+        )
+
+sepsis_ggheatmap
+
+# ggsave("./figures/var_vs_study_NAs_time_0.png", sepsis_ggheatmap, height = 14, width = 16, dpi = 120, units = "in")
+
+```
+
+```{r exploratory1, fig.height = 14, fig.width = 16, eval = FALSE}
+
+#
+
+sepsis_HA_df_time_0 %>%
+  select(where(is.numeric)) %>%
+  # select(!contains("_dur_T0_first_end")) %>%
+  select(any_of(names(count_NA_vector[count_NA_vector <= 25]))) %>%
+ggpairs()
+
+```
+
+```{r missing_count2, include = FALSE, eval = FALSE}
+
+sepsis_0_status %>% filter(is.na(bilirubin_total))
+
+vars_exclude <- names(count_NA_vector[count_NA_vector > 102])[1]
+for (i in 2:length(count_NA_vector[count_NA_vector > 102])) {
+  vars_exclude <- paste(vars_exclude, names(count_NA_vector[count_NA_vector > 102])[i], sep = ", ")
+}
+cat(vars_exclude)
+
+```
+
+## Анализ главных компонент
+
+```{r PCA}
+# Отсечка по CRP включительно -- остается 243 пациента
+
+sepsis_pca <- sepsis_HA_df_time_0 %>% 
+  select(is.numeric) %>% 
+  select(where(function(x) sum(is.na(x)) <13)) %>%
+  na.omit()
+
+sepsis_pca_result <- prcomp(sepsis_pca, scale = T) 
+
+summary(sepsis_pca_result)
+
+```
