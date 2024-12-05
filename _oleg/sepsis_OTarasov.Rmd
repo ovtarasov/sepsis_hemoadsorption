@@ -54,32 +54,47 @@ sepsis_HA_df <- sepsis_HA_df %>%
 3.    уровни факторов `study_id` и `unic_patient_id` заданы по порядку строк таблицы  
 4.    приведена в однообразный вид переменная `sex`: ("ж" | "женский") = "female" & ("м" и "мужской") = "male"  
 5.    у пациентки L_mSep_2dC_11_2-07 : `age` == 1990 заменен на 33, `height` == 95 заменен на `NA`  
-6.    в исследовании CL_Sep_3C_6 рост `height` переведен в см  
-7.    в `BMI` `NA` заменены на расчетные значения, если есть данные по росту и весу  
-8.    в `height` `NA` заменены на расчетные значения, если есть данные по ИМТ и весу  
+6.    в исследовании CL_Sep_3C_6 рост `height` переведен в см (кроме пациентов 040, 041, 042)
+7.    в `BMI` `NA` заменены на расчетные значения c округлением до 2 знака после запятой, если есть данные по росту и весу  
+8.    в `height` `NA` заменены на расчетные значения c округлением до целых, если есть данные по ИМТ и весу  
 9.    из-за неполноты данных убраны показатели острого почечного повреждения: `AKI_T0, AKI_dur_T0_first_end, AKI_first_end_status`  
 10.   добавлена переменная `combined_efferon` с переименованием: `efferon LPS` | `efferon CT` &rarr; `Efferon`, `base` &rarr; `Control`  
+11.   в `MAP` 0 заменены на `NA`
+12.   у пациентки L_mSep_2dC_11_R5-13 вес `weight` == 19 заменен на `NA`
+13.   у пациентки L_mSep_2dC_11_1-09 креатинин в точке 0 переведен из мг/дл в мкмоль/л
+14.   у пациентки L_Sep_2dC_7_2-04 замена 0 на `NA` в `AST`, `ALT`
+
+Возможно, надо заменить 0 на `NA` в `aPTT`, `fibrinogen`
+
+У пациентки L_Sep_2dC_7_2-20 стоит продолжительность реанимации 0.47, итог — смерть, продолжительность шока 0. Надо ли что-то делать с этим нулем?
 
 ```{r primary_filtration}
 
 sepsis_HA_df_cleaned <- sepsis_HA_df %>%  
   ungroup() %>% 
   filter(!is.na(treatment)) %>% 
-  filter(!is.na(sex)) %>% 
-  mutate(across(c(study_id, unic_patient_id, time_point, shock_T0, MV_T0, AKI_T0), as.factor)) %>% 
+  filter(!is.na(sex)) %>% # удалены строки с `NA` в `treatment` и в `sex` -- выбыло 16 пациентов  
+  mutate(across(c(study_id, unic_patient_id, time_point, shock_T0, MV_T0, AKI_T0), as.factor)) %>% # переменные `character` и `logical` кроме `study_patient_id` преобразованы в `factor`  
   mutate(study_id = fct_inorder(study_id)) %>%
-  mutate(unic_patient_id = fct_inorder(unic_patient_id)) %>%
-  mutate(sex = recode(sex, "м" = "male", "ж" = "female", "мужской" = "male", "женский" = "female")) %>% 
+  mutate(unic_patient_id = fct_inorder(unic_patient_id)) %>% # уровни факторов `study_id` и `unic_patient_id` заданы по порядку строк таблицы  
+  mutate(sex = recode(sex, "м" = "male", "ж" = "female", "мужской" = "male", "женский" = "female")) %>% # приведена в однообразный вид переменная `sex`
   mutate(
     age = if_else(unic_patient_id == "L_mSep_2dC_11_2-07" & age == 1990, 33, age),
-    height = if_else(study_id == "L_mSep_2dC_11_2-07", NA_real_, height)) %>% 
-  mutate(height = ifelse(study_id == "CL_Sep_3C_6", height * 100, height)) %>% 
-  mutate(BMI = if_else(is.na(BMI) & !is.na(weight) & !is.na(height), weight / ((height / 100) ^ 2), BMI)) %>%
-  mutate(height = if_else(!is.na(BMI) & !is.na(weight) & is.na(height), 100*sqrt(weight / BMI) , height)) %>%
-  select(everything(), -c(AKI_T0, AKI_dur_T0_first_end, AKI_first_end_status)) %>% # Исключение AKI
+    height = if_else(unic_patient_id == "L_mSep_2dC_11_2-07" & height == 95, NA_real_, height)) %>% # у пациентки L_mSep_2dC_11_2-07 : `age` == 1990 заменен на 33, `height` == 95 заменен на `NA`  
+  mutate(height = ifelse(study_id == "CL_Sep_3C_6" & !(study_patient_id %in% c("040", "041", "042")), height * 100, height)) %>% # в исследовании CL_Sep_3C_6 `height` переведен в см 
+  mutate(BMI = if_else(is.na(BMI) & !is.na(weight) & !is.na(height), round(weight / ((height / 100) ^ 2), 2), BMI)) %>% # в `BMI` `NA` заменены на расчетные значения 
+  mutate(height = if_else(!is.na(BMI) & !is.na(weight) & is.na(height), round(100*sqrt(weight / BMI)) , height)) %>% # в `height` `NA` заменены на расчетные значения
+  select(everything(), -c(AKI_T0, AKI_dur_T0_first_end, AKI_first_end_status)) %>% # убраны показатели острого почечного повреждения
   mutate(combined_efferon = case_when(treatment %in% c("efferon LPS", "efferon CT") ~ "Efferon", treatment == "base" ~ "Control"), 
          .after = treatment,
-         combined_efferon = factor(combined_efferon, levels = c("Efferon", "Control")))
+         combined_efferon = factor(combined_efferon, levels = c("Efferon", "Control"))) %>% # добавлена переменная `combined_efferon` 
+  mutate(MAP = ifelse(MAP == 0, NA, MAP)) %>% #  в `MAP` 0 заменены на `NA`
+  mutate(weight = ifelse(unic_patient_id == "L_mSep_2dC_11_R5-13" & weight == 19, NA, weight)) %>% # у пациентки L_mSep_2dC_11_R5-13 `weight` == 19 заменен на `NA`
+  mutate(creatinine = ifelse(unic_patient_id == "L_mSep_2dC_11_1-09" & time_point == "0", creatinine * 88.4, creatinine)) %>% #у пациентки L_mSep_2dC_11_1-09 креатинин в точке 0 переведен из мг/дл в мкмоль/л
+   mutate(
+    AST = if_else(unic_patient_id == "L_Sep_2dC_7_2-04" & AST == 0, NA, AST),
+    ALT = if_else(unic_patient_id == "L_Sep_2dC_7_2-04" & ALT == 0, NA, ALT)) # у пациентки L_Sep_2dC_7_2-04 замена 0 на `NA` в `AST`, `ALT`
+  
 ```  
 
 ```{r check_after_filtration, include = FALSE, eval = FALSE} 
@@ -93,6 +108,20 @@ summary(sepsis_HA_df_cleaned)
 # Проверка, что ID исследований идут по порядку -- ДА
 
 sum(as.numeric(sepsis_HA_df_cleaned$study_id) != sort(as.numeric(sepsis_HA_df_cleaned$study_id)))
+
+sepsis_HA_df_cleaned %>%
+  filter(time_point == 0) %>%
+  filter(height > 200)
+
+sepsis_HA_df_cleaned %>%
+  select(is.numeric) %>%
+  select(!c(SOFA, VIS2020, TNFa, diuresis, urea, age, weight, height, BMI, PCT, aPTT, fibrinogen, bilirubin_direct, LDH, AST, ALT, ferritin, DDimer, MAP)) %>%
+  select(!contains("IL_") & !IL_6) %>%
+  filter(if_any(everything(), function(x) x == 0))
+
+sepsis_HA_df_cleaned %>%
+  filter(CRP == 0)
+
 ```
 
 ### Точка 0  
@@ -252,8 +281,9 @@ sepsis_ggheatmap
 
 sepsis_HA_df_time_0 %>%
   select(where(is.numeric)) %>%
-  # select(!contains("_dur_T0_first_end")) %>%
-  select(any_of(names(count_NA_vector[count_NA_vector <= 25]))) %>%
+  select(!contains("_dur_T0_first_end")) %>%
+  mutate(across(c(WBC, PLT, creatinine, VIS2020, NEU, LYM, CRP, bilirubin_total), log10)) %>%
+  select(any_of(names(count_NA_vector[count_NA_vector <= 13]))) %>%
 ggpairs()
 
 ```
@@ -273,15 +303,28 @@ cat(vars_exclude)
 ## Анализ главных компонент
 
 ```{r PCA}
-# Отсечка по CRP включительно -- остается 243 пациента
+# Удаление длительностей
+# Отсечка по CRP включительно -- остается 242 пациента
 
 sepsis_pca <- sepsis_HA_df_time_0 %>% 
-  select(is.numeric) %>% 
+  select(!(contains("_dur_T0_first_end") | contains("_first_end_status"))) %>% 
   select(where(function(x) sum(is.na(x)) <13)) %>%
-  na.omit()
+  na.omit() 
 
-sepsis_pca_result <- prcomp(sepsis_pca, scale = T) 
+sepsis_pca_result <- sepsis_pca %>% 
+  select(is.numeric) %>% 
+  mutate(CRP = if_else(CRP == 0, 0.001, CRP)) %>%
+  mutate(across(c(WBC, PLT, creatinine, NEU, LYM, CRP, bilirubin_total), log10)) %>% # логарифмировать значения
+  prcomp(scale = T) 
 
 summary(sepsis_pca_result)
+
+sepsis_pca_result %>% 
+  ggbiplot(scale = 0,
+           choices = c(1,2),
+           groups = sepsis_pca$study_id,
+           ellipse = T,
+           alpha = 0.5) +
+  theme_minimal() 
 
 ```
