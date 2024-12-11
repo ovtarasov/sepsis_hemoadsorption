@@ -1,6 +1,6 @@
 # Primary data
-sepsis_HA_df_v1.rds
-sepsis_HA_df_v1.zip
+sepsis_HA_df*.rds
+sepsis_HA_df*.zip
 
 # My own files
 literature/
