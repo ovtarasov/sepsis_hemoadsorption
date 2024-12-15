@@ -5,7 +5,7 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(echo = TRUE)
 library (tidyverse)
 library(flextable)
 library(officer)
@@ -31,8 +31,10 @@ sepsis_clear <- sepsis %>%
 
 ```{r}
 
-sepsis_clear <- sepsis_clear %>% mutate (age = ifelse (age > 100, NA, print (age)),
-                                         height = ifelse (height < 3, print (height * 100), print (height)))
+sepsis_clear <- sepsis_clear %>%
+  mutate(age = ifelse(age > 100, NA, age),
+         height = ifelse(height < 3, height * 100, height))
+
 
 ```
 
@@ -347,7 +349,7 @@ km_fit <- survfit(surv_object ~ treatment, data = sepsis_clear)
 
 ## 3.3 Визуализация
 
-```{r}
+```{r, fig.width= 7, fig.height=7}
 ggsurvplot(km_fit,
            data = sepsis_clear,
            pval = TRUE,
