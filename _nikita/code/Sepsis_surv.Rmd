@@ -17,9 +17,12 @@ library(survminer)
 
 
 
+# 1. Предобработка данных
 
 ```{r}
 sepsis <- readRDS("../../../sepsis_HA_df_cleaned.rds")
+sepsis_clear <- sepsis_clear %>%
+  mutate(unique_id = paste(study_id, study_patient_id, sep = "_"))
 sepsis_clear <- sepsis %>%
   select(where( ~ mean(is.na(.)) <= 0.7)) %>%
   mutate (across (where (is.character), as.factor), across(where(is.logical), as.factor)) %>%
@@ -337,6 +340,7 @@ sepsis_clear <- sepsis_clear %>%
     event_status = ifelse(shock_first_end_status == "death", 1, 0),
     event_time = shock_dur_T0_first_end
   )
+
 ```
 
 ## 3.2 Анализ выживаемости
