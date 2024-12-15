@@ -24,7 +24,7 @@ sepsis_clear <- sepsis %>%
   select(where( ~ mean(is.na(.)) <= 0.7)) %>%
   mutate (across (where (is.character), as.factor), across(where(is.logical), as.factor)) %>%
   ungroup () %>%
-  mutate (treatment = ifelse (grepl ("efferon", treatment), "efferon", "base"))
+  mutate (treatment = ifelse (grepl ("efferon", treatment), "efferon", "base")) %>% filter(!is.na(shock_first_end_status))
 ```
 
 # 1.2 Модифицируем значения
@@ -350,6 +350,7 @@ km_fit <- survfit(surv_object ~ treatment, data = sepsis_clear)
 ## 3.3 Визуализация
 
 ```{r, fig.width= 7, fig.height=7}
+
 ggsurvplot(km_fit,
            data = sepsis_clear,
            pval = TRUE,
@@ -358,6 +359,7 @@ ggsurvplot(km_fit,
            ggtheme = theme_minimal(),
            legend.title = "Группа лечения",
            legend.labs = c("Базовая терапия", "Гемосорбция"))
+
 ```
 
 #3.4 Модель пропорциональных рисков Кокса
