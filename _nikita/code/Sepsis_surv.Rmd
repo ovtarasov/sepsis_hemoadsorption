@@ -5,34 +5,302 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = FALSE)
 library (tidyverse)
+library(flextable)
+library(officer)
+library(DescTools)
 library(survival)
 library(survminer)
 
 ```
 
-#Подготовка данных. Предобработка
+
+
 
 ```{r}
-sepsis <- readRDS("../../sepsis_HA_df_cleaned.rds")
-
-sepsis$event_time <- sepsis$shock_dur_T0_first_end
-sepsis$event_status <- as.numeric(sepsis$shock_first_end_status)
+sepsis <- readRDS("../../../../sepsis_HA_df_cleaned.rds")
+sepsis_clear <- sepsis %>%
+  select(where(~ mean(is.na(.)) <= 0.7)) %>%
+  mutate (across (where (is.character), as.factor), 
+          across(where(is.logical), as.factor)) %>%
+  ungroup () %>%
+  mutate (treatment = ifelse (grepl ("efferon", treatment), "efferon", "base"))
 ```
 
+# 1.2 Модифицируем значения
+
 ```{r}
-surv_object <- Surv(time = sepsis$event_time, event = sepsis$event_status)
 
-km_fit <- survfit(surv_object ~ treatment, data = sepsis)
+sepsis_clear <- sepsis_clear %>% mutate (age = ifelse (age > 100, NA, print (age)), 
+                         height = ifelse (height < 3, print (height*100), print (height)))
 
+```
+
+
+
+# 2. Посчитаем описательные статистики
+
+## 2.1 Количественные переменные только для 0 временной точки без учета терапии
+
+```{r}
+
+ft_num <- sepsis_clear %>%
+  filter(time_point == 0) %>%
+  select(where(is.numeric), -time_point) %>%
+  summarise(across(everything(), list(
+    "Количество значений" = ~ as.character(sum(!is.na(.))),
+    "Количество пропущенных значений" = ~ as.character(sum(is.na(.))),
+    "Среднее" = ~ as.character(round(mean(., na.rm = TRUE), 2)),
+    "Медиана" = ~ as.character(round(median(., na.rm = TRUE), 2)),
+    "Стандартное отклонение" = ~ as.character(round(sd(., na.rm = TRUE), 2)),
+    "25% квантиль" = ~ as.character(round(quantile(., 0.25, na.rm = TRUE), 2)),
+    "75% квантиль" = ~ as.character(round(quantile(., 0.75, na.rm = TRUE), 2)),
+    "Межквартильный размах" = ~ as.character(round(IQR(., na.rm = TRUE), 2)),
+    "Минимум" = ~ as.character(ifelse(all(is.na(.)), NA, round(min(., na.rm = TRUE), 2))),
+    "Максимум" = ~ as.character(ifelse(all(is.na(.)), NA, round(max(., na.rm = TRUE), 2)))), .names = "{.col}::{.fn}")) %>%
+  pivot_longer(cols = everything(), names_to = "Variable", values_to = "Value") %>%
+  separate(Variable, into = c("Variable", "Statistic"), sep = "::") %>%
+  pivot_wider(names_from = Variable, values_from = Value) %>% 
+  rename ("Статистика" = Statistic)
+
+
+summary_stats_table <- flextable(ft_num)
+
+summary_stats_table <- summary_stats_table %>%
+  border_remove() %>%
+  border_outer(part = "all", border = officer::fp_border(color = "black", width = 1)) %>%
+  border_inner_h(border = officer::fp_border(color = "black", width = 1)) %>%
+  border_inner_v(border = officer::fp_border(color = "black", width = 1))
+
+summary_stats_table
+```
+
+## 2.2 Качественные данные только для 0 временной точки без учета терапии
+
+```{r}
+
+summary_stats_cat <- sepsis_clear %>%
+  filter(time_point == 0) %>%
+  select(where(~ !is.numeric(.)), -study_id, -study_patient_id) %>%
+  pivot_longer(cols = everything(), names_to = "Variable", values_to = "Category") %>%
+  filter(!is.na(Category)) %>%
+  group_by(Variable, Category) %>%
+  summarise(
+    Количество = n(),
+    .groups = 'drop_last'
+  ) %>%
+  mutate(
+    Общее = sum(Количество),
+    Доля = Количество / Общее
+  ) %>%
+  rowwise() %>%
+  mutate(
+    CI = list(BinomCI(Количество, Общее, conf.level = 0.95, method = "wilson"))
+  ) %>%
+  ungroup() %>%
+  select(-CI)
+
+
+summary_stats_cat_table <- summary_stats_cat %>% 
+  rename("Переменная" = Variable, "Категория" = Category) %>% 
+  select(Переменная, Категория, Количество, Общее, Доля)
+
+summary_stats_cat_table <- flextable(summary_stats_cat_table) %>% 
+  border_remove() %>%
+  border_outer(part = "all", border = officer::fp_border(color = "black", width = 1)) %>%
+  border_inner_h(border = fp_border(color = "black", width = 1)) %>%
+  border_inner_v(border = fp_border(color = "black", width = 1)) %>% merge_v(j = "Переменная")
+
+summary_stats_cat_table
+
+```
+
+#  2.3 Количественные переменные только для 0 временной точки с учетом терапии
+
+```{r}
+summary_stats_table <- sepsis_clear %>%
+  filter(time_point == 0) %>%
+  group_by(treatment) %>%
+  select(where(is.numeric), -time_point) %>%
+  summarise(across(everything(), list(
+    "Количество значений" = ~ as.character(sum(!is.na(.))),
+    "Количество пропущенных значений" = ~ as.character(sum(is.na(.))),
+    "Среднее" = ~ as.character(round(mean(., na.rm = TRUE), 2)),
+    "Медиана" = ~ as.character(round(median(., na.rm = TRUE), 2)),
+    "Стандартное отклонение" = ~ as.character(round(sd(., na.rm = TRUE), 2)),
+    "25% квантиль" = ~ as.character(round(quantile(., 0.25, na.rm = TRUE), 2)),
+    "75% квантиль" = ~ as.character(round(quantile(., 0.75, na.rm = TRUE), 2)),
+    "Межквартильный размах" = ~ as.character(round(IQR(., na.rm = TRUE), 2)),
+    "Минимум" = ~ as.character(ifelse(all(is.na(.)), NA, round(min(., na.rm = TRUE), 2))),
+    "Максимум" = ~ as.character(ifelse(all(is.na(.)), NA, round(max(., na.rm = TRUE), 2)))
+  ), .names = "{.col}::{.fn}")) %>%
+  ungroup() %>%
+  pivot_longer(cols = -treatment, names_to = "Variable", values_to = "Value") %>%
+  separate(Variable, into = c("Variable", "Statistic"), sep = "::", fill = "right") %>%
+  pivot_wider(names_from = Variable, values_from = Value, values_fn = list) %>%
+  rename ("Терапия" = treatment, "Статистика" = Statistic) %>%
+  mutate(across(where(is.list), ~ sapply(., function(x) if (length(x) > 1) paste(x, collapse = "; ") else x))) %>%
+  flextable() %>%
+  theme_vanilla() %>%
+  autofit() %>%
+  hline_top(border = officer::fp_border(color = "black", width = 1)) %>%
+  hline_bottom(border = officer::fp_border(color = "black", width = 1)) %>%
+  hline(border = officer::fp_border(color = "black", width = 1)) %>%
+  vline(border = officer::fp_border(color = "black", width = 1))
+
+summary_stats_table
+
+
+```
+
+#  2.4 Качественные переменные только для 0 временной точки с учетом терапии
+
+```{r}
+summary_stats_cat_table <- sepsis_clear %>%
+  filter(time_point == 0) %>%
+  select(treatment, where(~ !is.numeric(.)), -study_id, -study_patient_id) %>%
+  pivot_longer(cols = -treatment, names_to = "Variable", values_to = "Category") %>%
+  filter(!is.na(Category)) %>%
+  group_by(treatment, Variable, Category) %>%
+  summarise(
+    Количество = n(),
+    .groups = 'drop'
+  ) %>%
+  group_by(treatment, Variable) %>%
+  mutate(
+    Общее = sum(Количество),
+    Доля = Количество / Общее
+  ) %>%
+  ungroup() %>%
+  rename("Переменная" = Variable, "Категория" = Category, "Терапия" = treatment) %>%
+  select(Терапия, Переменная, Категория, Количество, Общее, Доля) %>%
+  flextable() %>%
+  theme_vanilla() %>%
+  autofit() %>%
+  border_remove() %>%
+  border_outer(part = "all", border = officer::fp_border(color = "black", width = 1)) %>%
+  border_inner_h(border = officer::fp_border(color = "black", width = 1)) %>%
+  border_inner_v(border = officer::fp_border(color = "black", width = 1)) %>%
+  merge_v(j = c("Терапия", "Переменная"))
+
+summary_stats_cat_table
+```
+
+## 2.5 Количественные переменные только для 0 временной точки с учетом терапии и исследования
+
+```{r}
+summary_stats_table <- sepsis_clear %>%
+  filter(time_point == 0) %>%
+  group_by(treatment, study_id) %>%
+  select(where(is.numeric), -time_point) %>%
+  summarise(across(everything(), list(
+    "Количество значений" = ~ sum(!is.na(.)),
+    "Количество пропущенных значений" = ~ sum(is.na(.)),
+    "Среднее" = ~ round(mean(., na.rm = TRUE), 2),
+    "Медиана" = ~ round(median(., na.rm = TRUE), 2),
+    "Стандартное отклонение" = ~ round(sd(., na.rm = TRUE), 2),
+    "25% квантиль" = ~ round(quantile(., 0.25, na.rm = TRUE), 2),
+    "75% квантиль" = ~ round(quantile(., 0.75, na.rm = TRUE), 2),
+    "Межквартильный размах" = ~ round(IQR(., na.rm = TRUE), 2),
+    "Минимум" = ~ ifelse(all(is.na(.)), NA, round(min(., na.rm = TRUE), 2)),
+    "Максимум" = ~ ifelse(all(is.na(.)), NA, round(max(., na.rm = TRUE), 2))
+  ), .names = "{.col}::{.fn}")) %>%
+  ungroup() %>%
+  rename("Терапия" = treatment, "Исследование" = study_id) %>%
+  pivot_longer(cols = -c(Терапия, Исследование), names_to = "Переменная", values_to = "Значение") %>%
+  separate(Переменная, into = c("Переменная", "Статистика"), sep = "::", fill = "right") %>%
+  pivot_wider(names_from = Переменная, values_from = Значение, values_fn = list) %>%
+  mutate(across(where(is.list), ~ sapply(., function(x) paste(unique(x), collapse = "; ")))) %>%
+  flextable() %>%
+  theme_vanilla() %>%
+  autofit() %>%
+  hline_top(border = officer::fp_border(color = "black", width = 1)) %>%
+  hline_bottom(border = officer::fp_border(color = "black", width = 1)) %>%
+  hline(border = officer::fp_border(color = "black", width = 1)) %>%
+  vline(border = officer::fp_border(color = "black", width = 1))
+
+summary_stats_table
+
+```
+
+## 2.6 Качественные данные только для 0 временной точки c учетом терапии и исследования
+
+```{r}
+summary_stats_cat_table <- sepsis_clear %>%
+  filter(time_point == 0) %>%
+  select(treatment, study_id, where(~ !is.numeric(.)), -study_patient_id) %>%
+  pivot_longer(cols = -c(treatment, study_id), names_to = "Variable", values_to = "Category") %>%
+  filter(!is.na(Category)) %>%
+  group_by(treatment, study_id, Variable, Category) %>%
+  summarise(
+    Количество = n(),
+    .groups = 'drop'
+  ) %>%
+  group_by(treatment, study_id, Variable) %>%
+  mutate(
+    Общее = sum(Количество),
+    Доля = Количество / Общее
+  ) %>%
+  ungroup() %>%
+  rename("Переменная" = Variable, "Категория" = Category, "Терапия" = treatment, "Исследование" = study_id) %>%
+  select(Терапия, Исследование, Переменная, Категория, Количество, Общее, Доля) %>%
+  flextable() %>%
+  theme_vanilla() %>%
+  autofit() %>%
+  border_remove() %>%
+  border_outer(part = "all", border = officer::fp_border(color = "black", width = 1)) %>%
+  border_inner_h(border = officer::fp_border(color = "black", width = 1)) %>%
+  border_inner_v(border = officer::fp_border(color = "black", width = 1)) %>%
+  merge_v(j = c("Терапия", "Исследование", "Переменная"))
+
+summary_stats_cat_table
+
+```
+
+# 3. Анализ выживаемости
+
+## 3.1 Предобработка
+
+```{r}
+sepsis_clear <- sepsis_clear %>%
+  mutate(
+    event_time = shock_dur_T0_first_end,
+    event_status = ifelse(shock_first_end_status == "censored", 0, 1)
+  )
+
+```
+
+## 3.2 Анализ выживаемости
+
+```{r}
+surv_object <- Surv(time = sepsis_clear$event_time, event = sepsis_clear$event_status)
+
+km_fit <- survfit(surv_object ~ treatment, data = sepsis_clear)
+```
+
+## 3.3 Визуализация
+
+```{r}
 ggsurvplot(km_fit,
-           data = sepsis,
+           data = sepsis_clear,
            pval = TRUE,
-           conf.int = TRUE,
+           conf.int = TRUE,  
            risk.table = TRUE,
            ggtheme = theme_minimal(),
            legend.title = "Группа лечения",
-           legend.labs = c("Стандартная терапия", "Гемосорбция"))
+           legend.labs = c("Базовая терапия", "Гемосорбция"))
 ```
+
+#3.4 Модель пропорциональных рисков Кокса
+
+```{r}
+cox_model <- coxph(Surv(event_time, event_status) ~ treatment + sex + LYM + PF_ratio + SOFA, data = sepsis_clear)
+
+summary(cox_model)
+```
+##3.5 Визуализация
+
+
+
 
