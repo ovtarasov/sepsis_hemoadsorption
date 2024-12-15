@@ -1,0 +1,38 @@
+---
+title: "Survival analysis"
+author: "Гладышев Никита Сергеевич"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library (tidyverse)
+library(survival)
+library(survminer)
+
+```
+
+#Подготовка данных. Предобработка
+
+```{r}
+sepsis <- readRDS("../../sepsis_HA_df_cleaned.rds")
+
+sepsis$event_time <- sepsis$shock_dur_T0_first_end
+sepsis$event_status <- as.numeric(sepsis$shock_first_end_status)
+```
+
+```{r}
+surv_object <- Surv(time = sepsis$event_time, event = sepsis$event_status)
+
+km_fit <- survfit(surv_object ~ treatment, data = sepsis)
+
+ggsurvplot(km_fit,
+           data = sepsis,
+           pval = TRUE,
+           conf.int = TRUE,
+           risk.table = TRUE,
+           ggtheme = theme_minimal(),
+           legend.title = "Группа лечения",
+           legend.labs = c("Стандартная терапия", "Гемосорбция"))
+```
+
