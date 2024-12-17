@@ -10,7 +10,7 @@ knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = TRUE)
 
 # Set working folders
 
-here::i_am("code/1_sepsis_HA_data_import_processing.Rmd")
+here::i_am("code/1_sepsis_HA_data_import_processing_EDA.Rmd")
 
 path_to_scripts = "code/scripts"
 path_to_data = "data"
@@ -81,7 +81,7 @@ if (file.exists(here::here(path_to_data, "processed/sepsis_HA_df_cleaned.rds")))
 }
 
 ```
-```{r, include = FALSE, eval = FALSE}
+```{r check-df-cleaned, include = FALSE, eval = FALSE}
 # Inner control for data consistency
 
 # summary(sepsis_HA_df_cleaned)
@@ -96,23 +96,102 @@ if (file.exists(here::here(path_to_data, "processed/sepsis_HA_df_cleaned.rds")))
 
 ### Анализ пропущенных значений
 
-```{r}
-count_NA_vector <- sepsis_HA_df_cleaned %>%
-    filter(time_point == 0) %>%
-    mutate(across(contains("_dur_T0_first_end") | contains("_first_end_status"), function(x) tidyr::replace_na(as.character(x), "ND") )) %>% 
-    is.na() %>%
-    colSums() %>%
-    sort()
+```{r count-NA}
 
+# Rewrite later: add test for no-NAs in MV_T0, shock_T0
 
-# count_NA_vector <- sort(colSums(is.na(sepsis_0_status)))
+# Replace `NA` with `ND` in `MV_*`, `ICU_*` and `shock_*` variables
+sepsis_0_status <- sepsis_HA_df_cleaned %>%
+  	filter(time_point == 0) %>%
+  	mutate(across(contains("_dur_T0_first_end") | contains("_first_end_status"), 
+                function(x) replace_na(as.character(x), "ND") ))
+														
+# Count number of NAs left in variables and sort variables in of NAs increasing 
+count_NA_vector <- sort(colSums(is.na(sepsis_0_status)))
 
+# Set threshold of NAs to include variable into further analysis
 vars_exclude <- names(count_NA_vector[count_NA_vector > 102]) # Здесь устанавливаем порог отсечки по количеству `NA` в точке 0
+```
+
+```{r functions-NA-heatmap}
+
+## Отрисовка тепловой карты NA с помощью ggplot2
+
+# Создаем функции для модификации данных и отрисовки тепловой карты
+
+tibble_NA <- function(df, exclude = c("study_id", "study_patient_id", "unic_patient_id"), ...) {
+  NA_tibble <- df %>% 
+  select(order(colSums(is.na(.)))) %>%
+  mutate( across( !{{exclude}}, function(x) x %>% is.na() ) )  %>% 
+  pivot_longer(cols = !{{exclude}}, 
+               cols_vary = "slowest", 
+               names_to = "var",
+               values_to = "is.NA") %>%
+  mutate(var = fct_rev(fct_inorder(factor(var, ordered=TRUE)))) 
+  return(NA_tibble)
+}
+
+heatmap_NA <- function(NA_tibble = NA_tibble, 
+                       x = unic_patient_id, 
+                       y = var, 
+                       fill = is.NA, 
+                       fill_color = c("TRUE" = "lightgrey", "FALSE" = "darkgrey"), 
+                       ...) {
+  ggheatmap <- NA_tibble %>% 
+    ggplot() +
+    geom_tile(aes({{x}}, {{y}}, fill = {{fill}}), colour = "white") +
+  scale_fill_manual(values = {{fill_color}}) +
+  scale_y_discrete(name = NULL) +
+  theme_bw()  
+  return(ggheatmap)
+}
+```
+
+
+```{r plot-NA-heatmap, fig.height = 14, fig.width = 16, warning = FALSE}
+
+# Create heatmap of NAs in dataset
+sepsis_NA_tibble <- sepsis_0_status %>% tibble_NA()
+sepsis_ggheatmap_base <- sepsis_NA_tibble %>% heatmap_NA()
+  
+# Calculate indexes of study separators
+
+study_vlines <- c()
+for (i in 1:5) {
+  study_vlines <- c(study_vlines, 
+    which.max(sepsis_NA_tibble$study_id == levels(sepsis_NA_tibble$study_id)[i])
+    )
+}
+
+# Annotate heatmap
+
+sepsis_ggheatmap <- sepsis_ggheatmap_base +
+  geom_vline(xintercept = study_vlines[-1] - 0.5, 
+             linewidth = 0.5, 
+             colour = "darkgreen") +
+  geom_hline(yintercept = which(levels(sepsis_NA_tibble$var) %in% c("CRP", "PCT", "lactate"))-0.5,
+           linewidth = 0.5, 
+             colour = "red") +
+  scale_x_discrete(name = NULL,
+                   breaks = sepsis_NA_tibble$unic_patient_id[study_vlines],
+                   labels = c(levels(sepsis_NA_tibble$study_id)[-5], "1C_1"),
+                   position = "top") +
+  theme(legend.position='none', 
+        axis.ticks.x=element_blank(),
+        axis.text.x = element_text(hjust = c(-0.7,-0.4,-1,-0.4,0.1), size = 16, color = "black"),
+        axis.text.y = element_text(size = 14, color = "black")
+        )
+
+sepsis_ggheatmap
+
+# ggsave("./figures/var_vs_study_NAs_time_0.png", sepsis_ggheatmap, height = 14, width = 16, dpi = 120, units = "in")
+
+
 ```
 
 ### Оценка однородности данных
 
-```{r}
+```{r }
 ```
 
 ### Извлечение данных для дальнейшего анализа
@@ -126,6 +205,14 @@ source(here::here(path_to_scripts, "sepsis_HA_data_filter.R"))
 - исключено исследование L_Sep_1C_1 -- **выбыло 9 пациентов**
 
 Датасет сохранен в [`r path_to_data`/sepsis_HA_df_analyze.rds](../`r path_to_data`/sepsis_HA_df_analyze.rds) .
+
+```{r check-df-analyze, include = FALSE, eval = FALSE}
+# Inner control for data consistency
+
+# summary(sepsis_HA_df_analyze)
+# str(sepsis_HA_df_analyze)
+
+```
 
 ### Общая визуализация включенных в анализ данных
 
