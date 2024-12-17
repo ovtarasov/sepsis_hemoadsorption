@@ -1,7 +1,7 @@
 This folder contains raw data for the project **in local repositories of contributors only**.  
 Please contact [Alexander Popov]() to request access.  
 
-Last version of the data: [`./sepsis_HA_df_v3.rds`](./sepsis_HA_df_v3.rds). 
+Last version of the data: [`sepsis_HA_df_v3.rds`](sepsis_HA_df_v3.rds). 
 
 -----
 

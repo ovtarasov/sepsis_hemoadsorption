@@ -2,8 +2,8 @@ This folder contains data for the project **in local repositories of contributor
 Please contact [Alexander Popov]() to request access.  
 
 Subfolders:  
-- [processed](./processed/) - data chunks created during analysis. Please find detailed description [here](./processed/README_data_processed.md).  
-- [raw](./raw/) - raw data provided by Alexander Popov  
+- [processed](processed/) - data chunks created during analysis. Please find detailed description [here](processed/README_data_processed.md).  
+- [raw](raw/) - raw data provided by Alexander Popov  
 
 *Data description*:  
 
