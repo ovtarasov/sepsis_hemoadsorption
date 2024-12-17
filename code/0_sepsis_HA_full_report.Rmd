@@ -1,0 +1,15 @@
+---
+title: "Оценка влияния гемосорбции на исходы и динамику клинико-лабораторных показателей при лечении пациентов с бактериальным сепсисом"
+output: html_document
+  toc: yes
+---
+
+```{r setup, include = FALSE}
+# Set default chunk options
+knitr::opts_chunk$set(echo = FALSE)
+
+here::i_am("code/0_sepsis_HA_full_report.Rmd")
+```
+
+```{r, child = dir(pattern = "^\\d.*\\.Rmd$")[-1]}
+```

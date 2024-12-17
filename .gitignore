@@ -16,6 +16,9 @@ _oleg/
 # Obsolete file versions
 *.bak
 
+# Project file
+project.Rproj
+
 # History files
 .Rhistory
 .Rapp.history

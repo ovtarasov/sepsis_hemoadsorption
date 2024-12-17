@@ -1,0 +1,135 @@
+---
+title: ''
+output: html_document
+---
+
+```{r setup, include = FALSE}
+# Set default chunk options
+
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = TRUE)
+
+# Set working folders
+
+here::i_am("code/1_sepsis_HA_data_import_processing.Rmd")
+
+path_to_scripts = "code/scripts"
+path_to_data = "data"
+
+# Load required libraries
+
+library(tidyverse)
+library(ggpubr)
+library(ggbiplot)
+library(gtsummary)
+library(GGally)
+library(knitr)
+
+# Load external scripts
+
+```
+
+## Первичная обработка и эксплораторный анализ данных
+
+*Авторы: Олег Тарасов, Виктория Уварова*  
+
+### Очистка и трансформация  данных
+
+Исходные данные загружены из файла  [`r path_to_data`/raw/sepsis_HA_df_v3.rds](../`r path_to_data`/raw/sepsis_HA_df_v3.rds) .
+
+Создан датасет `sepsis_HA_df_cleaned` с изменениями, примененными в следующем порядке:
+
+1. Преобразование идентификаторов:
+  - в исследовании CL_Sep_3C_6 в идентификаторах пациентов `study_patient_id` кириллическая "К" заменена на латинскую "K"  
+  - добавлен сквозной уникальный идентификатор пациента `unic_patient_id` в виде `study_id_study_patient_id`  
+  
+2. Ручное исправление отдельных некорректных значений в соответствии с первичными данными:  
+  - у пациентки L_mSep_2dC_11_2-07 возраст `age` == 1990 заменен на 33, рост `height` == 95 заменен на 195  
+  - у пациентки L_mSep_2dC_11_R5-13 вес `weight` == 19 заменен на 79  
+  - у пациентки L_mSep_2dC_11_1-09 креатинин `creatinine` в точке 0 установлен 62  
+  - у пациентки L_Sep_2dC_7_2-04 в `AST`, `ALT`, `LDH` 0 заменены на `NA`  
+  - у пациента CL_Sep_3C_6_K35 уровень нейтрофилов `NEU` в точке 0 установлен 23  
+  - у пациентки CL_Sep_3C_6_014 для всех временных точек установлены значения `MV_T0` = `TRUE`, `MV_dur_T0_first_end` = 3, `MV_first_end_status` = `recovery`  
+
+3. Создание и удаление столбцов:
+  - добавлен столбец `combined_efferon`, объединяющий два разных типа сорбции в один, с переименованием уровней: `base` = `Control`, (`efferon LPS` | `efferon CT`) = `Efferon`  
+  - переменные `time_point`, `*_id` (кроме `study_patient_id`) и `*_T0` преобразованы в `factor`  
+  - уровни факторов `study_id` и `unic_patient_id` заданы по порядку строк таблицы  
+  - удалены столбцы, описывающие острое почечное повреждение: `AKI_T0, AKI_dur_T0_first_end, AKI_first_end_status`  
+  - удалены столбцы с относительным содержанием нейтрофилов `NEUr` и лейкоцитов `LYMr`  
+  - добавлены столбцы `NLR = NEU/LYM` и `SII = NLR/PLT`  
+  
+3. Добавление, удаление и преобразование значений переменных по всей таблице:
+  - удалены строки с `NA` в `treatment` и в `sex` -- **выбыло 16 пациентов**  
+  - в `MAP` и `fibrinogen` 0 заменены на `NA`  
+  - в исследовании CL_Sep_3C_6 рост `height` переведен в см (кроме пациентов 040, 041, 042)  
+  - в `aPTT` 0 и >150 заменены на 150 (= "кровь не свернулась")  
+  - в `BMI` `NA` заменены на расчетные значения c округлением до 2 знака после запятой, если есть данные по росту и весу  
+  - в `height` `NA` заменены на расчетные значения c округлением до целых, если есть данные по ИМТ и весу  
+  - приведена в однообразный вид переменная `sex`: `("ж" | "женский") = "female" & ("м" и "мужской") = "male"`  
+
+Датасет сохранен в [`r path_to_data`/processed/sepsis_HA_df_cleaned.rds](../`r path_to_data`/processed/sepsis_HA_df_cleaned.rds)  
+
+```{r data-import-cleaning}
+if (file.exists(here::here(path_to_data, "processed/sepsis_HA_df_cleaned.rds"))) {
+  # Load cleaned data from existing file
+  sepsis_HA_df_cleaned <- readRDS(here::here(path_to_data, "processed/sepsis_HA_df_cleaned.rds"))
+  print("Очищенные данные прочитаны из ранее созданного файла")
+} else {
+  # If `data/processed/sepsis_HA_df_cleaned.rds` does not exist, run `code/scripts/sepsis_HA_data_import_cleaning.R` for data reading and primary processing
+  source(here::here(path_to_scripts, "sepsis_HA_data_import_cleaning.R"))  
+  print("Проведена очистка данных")
+}
+
+```
+```{r, include = FALSE, eval = FALSE}
+# Inner control for data consistency
+
+# summary(sepsis_HA_df_cleaned)
+# str(sepsis_HA_df_cleaned)
+
+# Проверка, что ID исследований идут по порядку -- ДА
+
+# sum(as.numeric(sepsis_HA_df_cleaned$study_id) != sort(as.numeric(sepsis_HA_df_cleaned$study_id)))
+
+```
+
+
+### Анализ пропущенных значений
+
+```{r}
+count_NA_vector <- sepsis_HA_df_cleaned %>%
+    filter(time_point == 0) %>%
+    mutate(across(contains("_dur_T0_first_end") | contains("_first_end_status"), function(x) tidyr::replace_na(as.character(x), "ND") )) %>% 
+    is.na() %>%
+    colSums() %>%
+    sort()
+
+
+# count_NA_vector <- sort(colSums(is.na(sepsis_0_status)))
+
+vars_exclude <- names(count_NA_vector[count_NA_vector > 102]) # Здесь устанавливаем порог отсечки по количеству `NA` в точке 0
+```
+
+### Оценка однородности данных
+
+```{r}
+```
+
+### Извлечение данных для дальнейшего анализа
+
+```{r data-filter}
+source(here::here(path_to_scripts, "sepsis_HA_data_filter.R"))
+```
+
+Создан датасет `sepsis_HA_df_analyze`, в котором:   
+- удалены переменные с количеством `NA` в точке 0 больше 102: `r paste(vars_exclude, collapse = ", ")`  
+- исключено исследование L_Sep_1C_1 -- **выбыло 9 пациентов**
+
+Датасет сохранен в [`r path_to_data`/sepsis_HA_df_analyze.rds](../`r path_to_data`/sepsis_HA_df_analyze.rds) .
+
+### Общая визуализация включенных в анализ данных
+
+```{r}
+```
+
+
