@@ -1,12 +1,17 @@
+# git
+.git/
+
 # Primary data
 raw/
 data/raw/
+abandoned/data
+abandoned/raw
 sepsis_HA_df*.rds
 sepsis_HA_df*.zip
 
 # My own files
 literature/
-abandoned/
+# abandoned/
 _oleg/
 
 # Obsolete file versions
