@@ -6,10 +6,10 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-library(flextable)
 
-library(survival)
-library(survminer)
+library(tidycmprsk)
+library(ggplot2)
+library(ggsurvfit)
 
 ```
 
@@ -20,7 +20,7 @@ library(survminer)
 
 ```{r}
 # Формируем уникальные ID
-
+sepsis_clear <- read.csv("../../../sepsis_clear_GNS.csv")
 sepsis_clear <- sepsis_clear %>%
   mutate(unique_patient_id = paste(study_id, study_patient_id, sep = "_"))
 
@@ -28,52 +28,79 @@ sepsis_clear <- sepsis_clear %>%
 
 sepsis_clear <- sepsis_clear %>%
   mutate(
-    event_status = ifelse(shock_first_end_status == "death", 1, 0),
+    event_status = case_when(
+      shock_first_end_status == "death" ~ 1,
+      shock_first_end_status == "recovery" ~ 0
+    ),
     event_time = shock_dur_T0_first_end
-  )
+  ) %>%
+  mutate(across(where(is.character), as.factor))
 
-# Группируем пациента по времени наступления исхода
 
- sepsis_single <- sepsis_clear %>%
+# Группируем пациента по времени наступления смерти
+
+sepsis_single <- sepsis_clear %>%
   group_by(unique_patient_id) %>%
   summarise(
-     treatment = first(treatment),
-     event_status = max(event_status),
-    event_time = max(event_time, na.rm = TRUE)) 
+    treatment = first(treatment),
+    event_status = max(event_status, na.rm = TRUE),
+    event_time = max(event_time, na.rm = TRUE)
+  ) %>%
+  ungroup() %>%
+  mutate(event_status = factor(event_status, levels = c(0, 1), labels = c("censored", "death")))
+
+# Группируем пациента по времени наступления выздоровления
+
+sepsis_recovery <- sepsis_clear %>%
+  mutate(
+    event_status = case_when(
+      shock_first_end_status == "recovery" ~ 1,
+      shock_first_end_status == "death" ~ 0
+    )
+  ) %>%
+  group_by(unique_patient_id) %>%
+  summarise(
+    treatment = first(treatment),
+    event_status = max(event_status, na.rm = TRUE),
+    event_time = max(event_time, na.rm = TRUE)
+  ) %>%
+  ungroup() %>%
+  mutate(event_status = factor(event_status, levels = c(0, 1), labels = c("censored", "recovery")))
 
 ```
 
-## 3.2 Анализ выживаемости
+## 3.2 Анализ выживаемости и визуализация исхода: смерть
 
 ```{r}
-# Анализ выживаемости методом Каплана-Майера
 
-surv_object <- Surv(time = sepsis_single$event_time, event = sepsis_single$event_status)
-
-km_fit <- survfit(surv_object ~ treatment, data = sepsis_single)
-```
-
-## 3.3 Визуализация
-
-```{r, fig.width= 7, fig.height=7}
-
-ggsurvplot(km_fit,
-           data = sepsis_single,
-           pval = TRUE,
-           conf.int = TRUE,
-           risk.table = TRUE,
-           ggtheme = theme_bw(),
-           legend.title = "Группа лечения",
-           legend.labs = c("Базовая терапия", "Гемосорбция"))
+cuminc(Surv(event_time, event_status) ~ treatment, data = sepsis_single) %>%
+  ggcuminc(outcome = "death") +
+  labs (title = "Кумулятивный риск смерти",
+        y = "Кумулятивная вероятность",
+        x = "Время",
+        color = "Группа лечения") + 
+  add_confidence_interval() +
+  add_risktable() +
+  theme_bw ()
 
 ```
+
+## 3.3 Анализ выживаемости и визуализация исхода: выздоровление
 
 #3.4 Модель пропорциональных рисков Кокса
 
 ```{r}
-cox_model <- coxph(Surv(event_time, event_status) ~ treatment + IL_6 + VIS2020 + LYM + PF_ratio + SOFA, data = sepsis_clear)
-
-summary(cox_model)
+cuminc(Surv(event_time, event_status) ~ treatment, data = sepsis_recovery) %>%
+  ggcuminc(outcome = "recovery") +
+  labs(
+    title = "Кумулятивный риск выздоровления",
+    x = "Время",
+    y = "Кумулятивная вероятность",
+    color = "Группа лечения"
+  ) + 
+  add_confidence_interval() +
+  add_risktable() +
+  theme_bw ()
 ```
 ##3.5 Визуализация
 
