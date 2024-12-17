@@ -11,8 +11,8 @@ sepsis_HA_df*.zip
 
 # My own files
 literature/
-# abandoned/
-# _oleg/
+abandoned/
+_oleg/
 
 # Obsolete file versions
 *.bak
