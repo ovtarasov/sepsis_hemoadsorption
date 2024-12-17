@@ -18,6 +18,7 @@ _oleg/
 
 # Project file
 project.Rproj
+renv/
 
 # History files
 .Rhistory
