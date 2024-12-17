@@ -3,7 +3,6 @@
 
 # Primary data
 raw/
-data/raw/
 abandoned/data
 abandoned/raw
 sepsis_HA_df*.rds
