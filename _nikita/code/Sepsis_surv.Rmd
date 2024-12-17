@@ -62,7 +62,7 @@ ggsurvplot(km_fit,
            pval = TRUE,
            conf.int = TRUE,
            risk.table = TRUE,
-           ggtheme = theme_minimal(),
+           ggtheme = theme_bw(),
            legend.title = "Группа лечения",
            legend.labs = c("Базовая терапия", "Гемосорбция"))
 
