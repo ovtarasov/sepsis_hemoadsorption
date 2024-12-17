@@ -4,7 +4,7 @@ This folder contains separate `*.R` scripts and functions for data processing an
 
 [sepsis_HA_data_filter.R](sepsis_HA_data_filter.R) -- select data for further analysis after primary processing:  
     - remove patients from the `L_Sep_1C_1` study  
-    - remove variables with more-than-treshold number of `NA`s  
+    - remove variables with more-than-threshold number of `NA`s  
 
 [sepsis_HA_data_import_cleaning.R](sepsis_HA_data_import_cleaning.R) -- data primary processing:  
     - manually correct erronic and inconsistent values  
