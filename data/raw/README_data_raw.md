@@ -8,7 +8,7 @@ Last version of the data: [`./sepsis_HA_df_v3.rds`](./sepsis_HA_df_v3.rds).
 *Information in Russian for contributors*  
 
 [Таблица](https://docs.google.com/spreadsheets/d/1JEfnJZFx2pK3pMUI9cX7lLq3mo57EgAEHiau3Lq5CVY/) с описанием переменных  
-См. также первое обсуждение [2024-11-06](../discussions/2024-11-06.md#переменные)  
+См. также первое обсуждение [2024-11-06](../../discussions/2024-11-06.md#переменные)  
 
 *Обновление от Александра 2024-11-28: замена `sepsis_HA_df_v1.rds` на `sepsis_HA_df_v2.rds`*  
 - Добавил PCT - прокальцитонин, СRB - С-реактивный белок.  
