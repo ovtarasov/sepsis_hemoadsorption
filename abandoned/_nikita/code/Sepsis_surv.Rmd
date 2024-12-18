@@ -79,8 +79,44 @@ cuminc(Surv(event_time, event_status) ~ treatment, data = sepsis_single) %>%
   add_risktable() +
   theme_bw ()
 ```
+# Создание df длЯ регрессии Файна-Грея
 
+```{r}
+sepsis_single <- sepsis_single %>%
+  left_join(
+    sepsis_clear %>%
+      select(unique_patient_id, age, SOFA, PF_ratio, sex, VIS2020),
+    by = "unique_patient_id"
+  )
+```
 
+# Регрессионный анализ
 
+```{r}
+
+sepsis_single <- sepsis_single %>%
+  mutate(event_status = factor(event_status, levels = c("censored", "death", "recovery")))
+
+fine_gray_death <- crr(Surv(event_time, event_status) ~ treatment + age + SOFA + PF_ratio + sex + VIS2020,
+  data = sepsis_single
+)
+
+fine_gray_results <- fine_gray_death %>%
+  broom::tidy() %>%
+  mutate(HR = exp(estimate),
+         lower_CI = exp(estimate - 1.96 * std.error),
+         upper_CI = exp(estimate + 1.96 * std.error))
+
+ggplot(fine_gray_results, aes(x = term, y = HR, ymin = lower_CI, ymax = upper_CI)) +
+  geom_pointrange() +
+  geom_hline(yintercept = 1, linetype = "dashed", color = "red") +
+  coord_flip() +
+  labs(
+    title = "Hazard Ratio для событий",
+    x = "Ковариаты",
+    y = "Hazard Ratio (HR)"
+  ) +
+  theme_bw()
+```
 
 
