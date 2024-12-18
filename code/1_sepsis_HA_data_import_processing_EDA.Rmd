@@ -14,6 +14,7 @@ here::i_am("code/1_sepsis_HA_data_import_processing_EDA.Rmd")
 
 path_to_scripts = "code/scripts"
 path_to_data = "data"
+path_to_figures = "figures"
 
 # Load required libraries
 
@@ -113,78 +114,204 @@ count_NA_vector <- sort(colSums(is.na(sepsis_0_status)))
 vars_exclude <- names(count_NA_vector[count_NA_vector > 102]) # Здесь устанавливаем порог отсечки по количеству `NA` в точке 0
 ```
 
-```{r functions-NA-heatmap}
+```{r create-NA-heatmap}
 
-## Отрисовка тепловой карты NA с помощью ggplot2
+# Create function to plot heatmap of NA distribution across studies
 
-# Создаем функции для модификации данных и отрисовки тепловой карты
+NA_heatmap <-	function(sepsis_0_status, count_NA_vector, study_id = c("origin", "recode", "none")) {
+	
+	# Inner function to create table of NAs
+	tibble_NA <- function(df, exclude = c("study_id", "study_patient_id", "unic_patient_id"), ...) {
+	
+		NA_tibble <- df %>% 
+  	select(order(colSums(is.na(.)))) %>%
+	  mutate( across( !{{exclude}}, function(x) x %>% is.na() ) )  %>% 
+  	pivot_longer(cols = !{{exclude}}, 
+    	           cols_vary = "slowest", 
+      	         names_to = "var",
+        	       values_to = "is.NA") %>%
+  	mutate(var = fct_rev(fct_inorder(factor(var, ordered=TRUE)))) 
+  	
+		return(NA_tibble)
+	}
 
-tibble_NA <- function(df, exclude = c("study_id", "study_patient_id", "unic_patient_id"), ...) {
-  NA_tibble <- df %>% 
-  select(order(colSums(is.na(.)))) %>%
-  mutate( across( !{{exclude}}, function(x) x %>% is.na() ) )  %>% 
-  pivot_longer(cols = !{{exclude}}, 
-               cols_vary = "slowest", 
-               names_to = "var",
-               values_to = "is.NA") %>%
-  mutate(var = fct_rev(fct_inorder(factor(var, ordered=TRUE)))) 
-  return(NA_tibble)
-}
-
-heatmap_NA <- function(NA_tibble = NA_tibble, 
-                       x = unic_patient_id, 
-                       y = var, 
-                       fill = is.NA, 
-                       fill_color = c("TRUE" = "lightgrey", "FALSE" = "darkgrey"), 
-                       ...) {
-  ggheatmap <- NA_tibble %>% 
-    ggplot() +
-    geom_tile(aes({{x}}, {{y}}, fill = {{fill}}), colour = "white") +
-  scale_fill_manual(values = {{fill_color}}) +
-  scale_y_discrete(name = NULL) +
-  theme_bw()  
-  return(ggheatmap)
-}
-```
-
-
-```{r plot-NA-heatmap, fig.height = 14, fig.width = 16, warning = FALSE}
-
-# Create heatmap of NAs in dataset
-sepsis_NA_tibble <- sepsis_0_status %>% tibble_NA()
-sepsis_ggheatmap_base <- sepsis_NA_tibble %>% heatmap_NA()
-  
-# Calculate indexes of study separators
-
-study_vlines <- c()
-for (i in 1:5) {
+	# Create table of NAs in dataset
+	sepsis_NA_tibble <- sepsis_0_status %>% tibble_NA()
+	
+	# Calculate indexes to draw horizontal lines according to NA number 
+	NA_hlines <- which(levels(sepsis_NA_tibble$var) %in% c("CRP", "PCT", "lactate"))-0.5
+	
+	# Calculate indexes of study separators
+	study_vlines <- c()
+	for (i in 1:5) {
   study_vlines <- c(study_vlines, 
     which.max(sepsis_NA_tibble$study_id == levels(sepsis_NA_tibble$study_id)[i])
     )
+	}
+	
+	# Set linewidth
+	linewidth = 0.5
+	
+	# Create plot
+	sepsis_NA_heatmap <- sepsis_NA_tibble %>%
+	ggplot() +
+	geom_tile(aes(unic_patient_id, 
+  							var, 
+  							fill = is.NA),  
+  							colour = "white") +
+	# Set heatmap colors
+	scale_fill_manual(values = c("TRUE" = "gray80", "FALSE" = "gray60")) +
+	scale_x_discrete(name = NULL) +
+	scale_y_discrete(name = NULL) +
+	coord_cartesian(clip = "off") +
+	# Draw horizontal lines as NA number thresholds
+	geom_segment(
+    data = data.frame(x0 = -40, x1 = 265, y = NA_hlines),
+    aes(x = x0, xend = x1, y = y, yend = y),
+    linewidth = linewidth, 
+    inherit.aes = FALSE,
+    color = "red"
+  ) +
+	# Draw vertical lines to separate studies
+	geom_segment(
+    data = data.frame(x = study_vlines[-1] - 0.5, y0 = -0.1, y1 = length(count_NA_vector)-1.9),
+    aes(x = x, xend = x, y = y0, yend = y1),
+    linewidth = linewidth, 
+    inherit.aes = FALSE,
+    color = "darkgreen"
+  ) +
+	# Draw Y-axis ticks
+	geom_segment(
+    data = data.frame(x0 = 0.5, x1 = -1, y = 1:58),
+    aes(x = x0, xend = x1, y = y, yend = y),
+    linewidth = linewidth, 
+    inherit.aes = FALSE,
+    color = "gray40"
+  ) +
+	# Draw Y-axis
+	geom_segment(x = 0.5, xend = 0.5, y = 0.5, yend = 58.5,
+    linewidth = linewidth, 
+    inherit.aes = FALSE,
+    color = "gray60"
+  ) +
+	# Put variable names as Y-axis tick labels
+	geom_text(
+		data = data.frame(var = levels(sepsis_NA_tibble$var), y = 1:58),
+		aes(label = var, x = -2, y = y), 
+		size = 5,
+		hjust = 1,
+		inherit.aes = FALSE
+	) +
+	# Label NA thereshold horizontal lines with corresponding NA numbers
+	geom_text(
+		data = data.frame(countNA = count_NA_vector[length(count_NA_vector) - NA_hlines + 0.5], y = NA_hlines + 0.5), 	
+		aes(label = countNA, x = -37.5, y = y),
+		size = 5,
+		hjust = 0.5,
+		vjust = 0.3,
+		color = "red",
+		inherit.aes = FALSE
+	) +
+	# Write plot title
+	ggtitle("Distribution of missing values in variables across studies at the time point 0")	+
+	# Set legend
+	guides(
+		fill = guide_legend(
+		title = "Missing\nvalues", 
+		override.aes = list(alpha = c(1,0))
+		)
+	) +
+	# Set theme
+	theme_bw() +
+	theme(plot.title = element_text(size = 20, face = "bold", hjust = 0.7, vjust = 4), 
+				legend.position = "inside",
+				legend.justification.inside = c(-0.018, 0.3),
+				legend.key.size = unit(30, "pt"), 
+				legend.background = element_blank(),
+				legend.text = element_blank(),
+				legend.title = element_text(hjust = 0.5, size = 15),
+				axis.text.x = element_blank(),
+				axis.ticks.x = element_blank(),
+				axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.line = element_blank(),
+				panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+				plot.margin = margin(25, 15, 10, 35, "pt")
+	)
+
+	if (study_id == "origin") {
+		study <- c(levels(sepsis_NA_tibble$study_id)[-5], "1C_1")
+	} else if (study_id == "recode") {
+		study <- c("A", "B", "C", "D", "E")
+	}
+	
+	if (study_id != "none") {
+	
+	sepsis_NA_heatmap <- sepsis_NA_heatmap +
+	# Write study IDs under the heatmap
+	geom_text(
+		data = data.frame(study, 
+											x = ((c(study_vlines, 265, 0) + c(0, study_vlines, 265))/2)[2:6]	),
+		aes(label = study, x = x, y = -0.7), 
+		size = 5.5,
+		fontface = "bold", 
+		hjust = 0.45,
+		vjust = 0,
+		color = "darkgreen",
+		inherit.aes = FALSE
+	) +
+	# Write study IDs over the heatmap
+	geom_text(
+		data = data.frame(study, 
+											x = ((c(study_vlines, 265, 0) + c(0, study_vlines, 265))/2)[2:6]	),
+		aes(label = study, x = x, y = length(count_NA_vector)-2.1), 
+		size = 5.5,
+		fontface = "bold", 
+		hjust = 0.45,
+		vjust = 0,
+		color = "darkgreen",
+		inherit.aes = FALSE
+	) 
+	}
+		
+	return(sepsis_NA_heatmap)
 }
 
-# Annotate heatmap
+```
 
-sepsis_ggheatmap <- sepsis_ggheatmap_base +
-  geom_vline(xintercept = study_vlines[-1] - 0.5, 
-             linewidth = 0.5, 
-             colour = "darkgreen") +
-  geom_hline(yintercept = which(levels(sepsis_NA_tibble$var) %in% c("CRP", "PCT", "lactate"))-0.5,
-           linewidth = 0.5, 
-             colour = "red") +
-  scale_x_discrete(name = NULL,
-                   breaks = sepsis_NA_tibble$unic_patient_id[study_vlines],
-                   labels = c(levels(sepsis_NA_tibble$study_id)[-5], "1C_1"),
-                   position = "top") +
-  theme(legend.position='none', 
-        axis.ticks.x=element_blank(),
-        axis.text.x = element_text(hjust = c(-0.7,-0.4,-1,-0.4,0.1), size = 16, color = "black"),
-        axis.text.y = element_text(size = 14, color = "black")
-        )
 
-sepsis_ggheatmap
+```{r plot-NA-heatmap, fig.height = 14, fig.width = 18, dpi = 120, fig.retina = 1, warning = FALSE}
 
-# ggsave("./figures/var_vs_study_NAs_time_0.png", sepsis_ggheatmap, height = 14, width = 16, dpi = 120, units = "in")
+# Create heatmap of NAs in dataset
+
+sepsis_NA_heatmap <- NA_heatmap(sepsis_0_status = sepsis_0_status, count_NA_vector = count_NA_vector, study_id = "recode") +
+	# Draw frame around studies and variables selected for further analysis
+	geom_rect(
+		xmin = -0.25, 
+		xmax = which(sepsis_0_status$study_id == "L_Sep_1C_1")[1] + 0.25, 
+		ymin = length(count_NA_vector) - which(names(count_NA_vector) == "lactate") + 0.25, 
+		ymax = length(count_NA_vector) - 2.35, 
+		fill = NA, 
+		linewidth = 0.5, 
+		color = "cyan3", 
+		alpha = 0.2
+	) +
+	# Label frame
+	geom_text(
+		aes(label = "Dataset for further analysis", x = -40, y = 59),
+		size = 5,
+		fontface = "italic", 
+		hjust = 0.14,
+		vjust = 0.1,
+		color = "cyan3",
+		inherit.aes = FALSE
+	)
+
+sepsis_NA_heatmap
+
+ggsave(here::here(path_to_figures, "var_vs_study_NAs_time_0.png"), sepsis_NA_heatmap, height = 14, width = 19, dpi = 120, units = "in")
 
 
 ```
