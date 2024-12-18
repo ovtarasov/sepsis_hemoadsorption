@@ -35,6 +35,7 @@ sepsis_clear <- readRDS("../../../../sepsis_clear_GNS.rds") %>%
          across(where(is.character), as.factor))
 # Делаем датафрейм с 
 sepsis_single <- sepsis_clear %>%
+  filter (event_time < 40) %>% 
   group_by(unique_patient_id) %>%
   summarise(
     treatment = first(treatment),
