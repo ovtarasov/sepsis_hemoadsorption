@@ -1,7 +1,9 @@
 ---
 title: "Survival analysis"
 author: "Гладышев Никита Сергеевич"
-output: html_document
+output:
+  word_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -14,7 +16,7 @@ library(ggsurvfit)
 ```
 
 
-# 3. Анализ выживаемости
+# 3. Анализ выживаемости. Шок
 
 ## 3.1 Предобработка
 
@@ -80,7 +82,8 @@ cuminc(Surv(event_time, event_status) ~ treatment, data = sepsis_single) %>%
   add_risktable() +
   theme_bw ()
 ```
-# Создание df длЯ регрессии Файна-Грея
+
+# 3.4 Создание df длЯ регрессии Файна-Грея
 
 ```{r}
 sepsis_single <- sepsis_single %>%
@@ -91,7 +94,7 @@ sepsis_single <- sepsis_single %>%
   )
 ```
 
-# Регрессионный анализ
+# 3.5 Построение модели
 
 ```{r}
 
@@ -120,4 +123,68 @@ ggplot(fine_gray_results, aes(x = term, y = HR, ymin = lower_CI, ymax = upper_CI
   theme_bw()
 ```
 
+____________________________________
 
+# 4 Анализ выживаемости. ICU
+
+```{r}
+# Формируем уникальные ID, делаем переменные "смерть, выздоровление и цензурирование"
+
+sepsis_clear <- readRDS("../../../../sepsis_clear_GNS.rds") %>%
+  mutate(
+    unique_patient_id = paste(study_id, study_patient_id, sep = "_"),
+    event_status = case_when(
+      ICU_first_end_status == "death" ~ "death",
+      ICU_first_end_status == "recovery" ~ "recovery",
+      is.na(ICU_first_end_status) ~ "censored"
+    ),
+    event_time = ICU_dur_T0_first_end
+    ) %>%
+  mutate(event_status = factor(event_status, levels = c("censored", "recovery", "death")),
+         across(where(is.character), as.factor))
+# Делаем датафрейм с 
+sepsis_single <- sepsis_clear %>%
+  filter (event_time < 50) %>% 
+  group_by(unique_patient_id) %>%
+  summarise(
+    treatment = first(treatment),
+    event_status = first(event_status),
+    event_time = if_else(all(is.na(event_time)), NA_real_, max(event_time, na.rm = TRUE))
+  ) %>%
+  ungroup()
+
+
+```
+
+## 4.2 Анализ выживаемости и визуализация исхода: смерть
+
+```{r}
+
+cuminc(Surv(event_time, event_status) ~ treatment, data = sepsis_single) %>%
+  ggcuminc(outcome = "death") +
+  labs (title = "Кумулятивный риск смерти",
+        y = "Кумулятивная вероятность",
+        x = "Время",
+        color = "Группа лечения") + 
+  add_confidence_interval() +
+  add_risktable() +
+  theme_bw ()
+
+```
+
+## 4.3 Анализ выживаемости и визуализация исхода: выздоровление
+
+
+```{r}
+cuminc(Surv(event_time, event_status) ~ treatment, data = sepsis_single) %>%
+  ggcuminc(outcome = "recovery") +
+  labs(
+    title = "Кумулятивный риск выздоровления",
+    x = "Время",
+    y = "Кумулятивная вероятность",
+    color = "Группа лечения"
+  ) + 
+  add_confidence_interval() +
+  add_risktable() +
+  theme_bw ()
+```
