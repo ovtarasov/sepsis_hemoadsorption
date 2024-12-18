@@ -15,7 +15,7 @@ library(DescTools)
 # 1. Предобработка данных
 
 ```{r}
-sepsis <- readRDS("../../../sepsis_HA_df_cleaned.rds")
+sepsis <- readRDS("../../../../sepsis_HA_df_cleaned.rds")
 
 
 sepsis_clear <- sepsis %>%
@@ -37,7 +37,7 @@ sepsis_clear <- sepsis_clear %>%
 ```
 
 ```{r}
-write.csv(sepsis_clear, "../../../sepsis_clear_GNS.csv")
+write_rds(sepsis_clear, "../../../../sepsis_clear_GNS.rds")
 ```
 
 

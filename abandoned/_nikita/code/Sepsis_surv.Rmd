@@ -20,7 +20,7 @@ library(ggsurvfit)
 
 ```{r}
 # Формируем уникальные ID
-sepsis_clear <- read.csv("../../../sepsis_clear_GNS.csv")
+sepsis_clear <- readRDS("../../../../sepsis_clear_GNS.rds")
 sepsis_clear <- sepsis_clear %>%
   mutate(unique_patient_id = paste(study_id, study_patient_id, sep = "_"))
 
