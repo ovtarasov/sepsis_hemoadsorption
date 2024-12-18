@@ -22,6 +22,7 @@ library(ggsurvfit)
 # Формируем уникальные ID, делаем переменные "смерть, выздоровление и цензурирование"
 
 sepsis_clear <- readRDS("../../../../sepsis_clear_GNS.rds") %>%
+  filter(shock_T0 == TRUE) %>% 
   mutate(
     unique_patient_id = paste(study_id, study_patient_id, sep = "_"),
     event_status = case_when(
