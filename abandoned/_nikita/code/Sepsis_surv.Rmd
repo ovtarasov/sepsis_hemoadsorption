@@ -56,12 +56,13 @@ sepsis_single <- sepsis_clear %>%
 
 cuminc(Surv(event_time, event_status) ~ treatment, data = sepsis_single) %>%
   ggcuminc(outcome = "death") +
-  labs (title = "Кумулятивный риск смерти",
-        y = "Кумулятивная вероятность",
-        x = "Время",
-        color = "Группа лечения") + 
+  labs (title = "Cumulative Risk of Death",
+    y = "Cumulative Probability",
+    x = "Time",
+    color = "Treatment Group") + 
   add_confidence_interval() +
   add_risktable() +
+  add_pvalue() +
   theme_bw ()
 
 ```
@@ -80,10 +81,11 @@ cuminc(Surv(event_time, event_status) ~ treatment, data = sepsis_single) %>%
   ) + 
   add_confidence_interval() +
   add_risktable() +
+   add_pvalue() +
   theme_bw ()
 ```
 
-# 3.4 Создание df длЯ регрессии Файна-Грея
+# 3.4 Создание df для регрессии Файна-Грея
 
 ```{r}
 sepsis_single <- sepsis_single %>%
@@ -94,33 +96,35 @@ sepsis_single <- sepsis_single %>%
   )
 ```
 
-# 3.5 Построение модели
+#Доп: код от Евгения для шока
 
 ```{r}
 
-sepsis_single <- sepsis_single %>%
-  mutate(event_status = factor(event_status, levels = c("censored", "death", "recovery")))
+tidy_model <- tidycmprsk::cuminc(Surv(event_time, event_status) ~ treatment, sepsis_single) 
 
-fine_gray_death <- crr(Surv(event_time, event_status) ~ treatment + age + SOFA + PF_ratio + sex + VIS2020,
-  data = sepsis_single
-)
+tidy_model |>
+  tbl_cuminc() |>
+  add_p() |>
+  add_n()
 
-fine_gray_results <- fine_gray_death %>%
-  broom::tidy() %>%
-  mutate(HR = exp(estimate),
-         lower_CI = exp(estimate - 1.96 * std.error),
-         upper_CI = exp(estimate + 1.96 * std.error))
+df_1 <- tidy_model$tidy 
 
-ggplot(fine_gray_results, aes(x = term, y = HR, ymin = lower_CI, ymax = upper_CI)) +
-  geom_pointrange() +
-  geom_hline(yintercept = 1, linetype = "dashed", color = "red") +
-  coord_flip() +
-  labs(
-    title = "Hazard Ratio для событий",
-    x = "Ковариаты",
-    y = "Hazard Ratio (HR)"
-  ) +
+df_2 <- df_1 %>% 
+  group_by(strata, outcome) %>% 
+  mutate(estimate = lag(estimate)) %>% 
+  ungroup()
+
+df_plot <- rbind(df_1, df_2) %>% 
+  group_by(strata, outcome ) %>%
+  arrange(time, estimate, .by_group = TRUE) %>% 
+  ungroup()
+  
+ggplot(df_plot, aes(x = time, y = estimate, fill = outcome)) +
+  geom_area(position = "stack") +
+  facet_wrap(~strata, ncol = 2) + 
   theme_bw()
+
+
 ```
 
 ____________________________________
@@ -162,12 +166,13 @@ sepsis_single <- sepsis_clear %>%
 
 cuminc(Surv(event_time, event_status) ~ treatment, data = sepsis_single) %>%
   ggcuminc(outcome = "death") +
-  labs (title = "Кумулятивный риск смерти",
-        y = "Кумулятивная вероятность",
-        x = "Время",
-        color = "Группа лечения") + 
+  labs (title = "Cumulative Risk of Death",
+    y = "Cumulative Probability",
+    x = "Time",
+    color = "Treatment Group") + 
   add_confidence_interval() +
   add_risktable() +
+  add_pvalue() +
   theme_bw ()
 
 ```
@@ -179,12 +184,61 @@ cuminc(Surv(event_time, event_status) ~ treatment, data = sepsis_single) %>%
 cuminc(Surv(event_time, event_status) ~ treatment, data = sepsis_single) %>%
   ggcuminc(outcome = "recovery") +
   labs(
-    title = "Кумулятивный риск выздоровления",
-    x = "Время",
-    y = "Кумулятивная вероятность",
-    color = "Группа лечения"
+    title = "Cumulative Risk of Recovery",
+    x = "Time",
+    y = "Cumulative Probability",
+    color = "Treatment Group"
   ) + 
   add_confidence_interval() +
   add_risktable() +
-  theme_bw ()
+  add_pvalue() +
+  theme_bw()
 ```
+
+# 5 Анализ выживаемости с MV
+
+```{r}
+# Формируем уникальные ID, делаем переменные "смерть, выздоровление и цензурирование"
+
+sepsis_clear <- readRDS("../../../../sepsis_clear_GNS.rds") %>%
+  filter (MV_T0 == "TRUE") %>%
+  mutate(
+    unique_patient_id = paste(study_id, study_patient_id, sep = "_"),
+    event_status = case_when(
+      ICU_first_end_status == "death" ~ "death",
+      ICU_first_end_status == "recovery" ~ "recovery",
+      is.na(ICU_first_end_status) ~ "censored"
+    ),
+    event_time = ICU_dur_T0_first_end
+    ) %>%
+  mutate(event_status = factor(event_status, levels = c("censored", "recovery", "death")),
+         across(where(is.character), as.factor))
+
+sepsis_single <- sepsis_clear %>%
+  filter (event_time < 45) %>% 
+  group_by(unique_patient_id) %>%
+  summarise(
+    treatment = first(treatment),
+    event_status = first(event_status),
+    event_time = if_else(all(is.na(event_time)), NA_real_, max(event_time, na.rm = TRUE))
+  ) %>%
+  ungroup()
+```
+
+## 5.2 Анализ выживаемости и визуализация исхода: смерть
+
+```{r}
+cuminc(Surv(event_time, event_status) ~ treatment, data = sepsis_single) %>%
+  ggcuminc(outcome = "death") +
+  labs(
+    title = "Cumulative Risk of Death",
+    y = "Cumulative Probability",
+    x = "Time",
+    color = "Treatment Group"
+  ) + 
+  add_confidence_interval() +
+  add_risktable() +
+  add_pvalue() +
+  theme_bw()
+```
+
