@@ -33,7 +33,8 @@ if (!exists("vars_exclude")) {
 sepsis_HA_df_analyze <- sepsis_HA_df_cleaned %>%
   select(!all_of(vars_exclude)) %>% # удалены переменные с количеством `NA` в точке 0 больше порога
   filter(study_id != "L_Sep_1C_1") %>% # исключено исследование L_Sep_1C_1 -- выбыло 9 пациентов
-  ungroup()
+  ungroup() %>% 
+	droplevels()	# drop unused unic_patients_id
 
 # summary(sepsis_HA_df_analyze)
 
