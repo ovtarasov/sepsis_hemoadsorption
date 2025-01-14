@@ -1,0 +1,288 @@
+---
+title: "2_sepsis_HA_data_descriptive_statistics_MANOVA"
+author: "Uvarova Victoria"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, error = FALSE)
+
+library(tidyverse)
+library(gtsummary)
+set_gtsummary_theme(list("style_number-arg:big.mark" = ""))
+```
+
+## Table of Contents
+
+-   In the table generation code, variables and study names were renamed.
+
+L_Sep_2R_4 --- **Study A**
+
+L_mSep_2dC_11 --- **Study B**
+
+CL_Sep_3C_6 --- **Study** **C**
+
+L_Sep_2dC_7 --- **Study** **D**
+
+L_Sep_1C_1 --- **Study** **E**
+
+Two datasets were utilized in the analysis: **sepsis_HA_df_cleaned.rds** and **sepsis_HA_df_analyze.rds**.
+
+**sepsis_HA_df_cleaned.rds:** Underwent initial data cleaning, with all studies and variables retained.
+
+**sepsis_HA_df_analyze.rds:** Variables with NA counts greater than 102 at time point 0 were removed, and Study E was excluded.
+
+-   Based on the dataset **sepsis_HA_df_cleaned.rds**, two tables and MANOVA were created:
+
+**Table 0.** Comparative Analysis of Clinical Studies at Time Point 0
+
+**Table 1.** Comparison of Control and Efferon Groups at Time Point 0 sepsis_HA_df_cleaned.
+
+MANOVA for **Study B, C and D**
+
+The dataset underwent initial data cleaning, with all studies and variables retained.
+
+-   Based on the dataset **sepsis_HA_df_analyze.rds**, final table were created:
+
+**Table 1.** Comparison of Control and Efferon Groups at Time Point 0
+
+## Loading the Cleaned Dataset sepsis_HA_df_cleaned
+
+```{r}
+sepsis_HA_df_cleaned <- readRDS("sepsis_HA_df_cleaned.rds")
+```
+
+## Table 0. Comparative Analysis of Clinical Studies at Time Point 0
+
+```{r}
+sepsis_HA_df_cleaned %>% filter(time_point == 0) %>% 
+  select(everything(), -c(study_patient_id, treatment, time_point, combined_efferon, unic_patient_id)) %>%
+  select(everything(), -c(shock_dur_T0_first_end, shock_first_end_status, ICU_dur_T0_first_end, ICU_first_end_status, MV_dur_T0_first_end, MV_first_end_status)) %>% 
+  
+  mutate(study_id = study_id %>%
+           str_replace("L_Sep_2R_4", "Study A") %>%
+           str_replace("L_mSep_2dC_11", "Study B") %>%
+           str_replace("CL_Sep_3C_6", "Study C") %>%
+           str_replace("L_Sep_2dC_7", "Study D") %>%
+           str_replace("L_Sep_1C_1", "Study E")) %>%
+  
+  rename_with(function(x) x %>%
+                str_replace("age", "Age, years") %>%
+                str_replace("sex", "Sex") %>%
+                str_replace("weight", "Weight, kg") %>%
+                str_replace("height", "Height, cm") %>%
+                str_replace("BMI", "BMI, kg/m^2") %>%
+                str_replace("MAP", "MAP, mmHg") %>%
+                str_replace("FiO2", "FiO2, %") %>%
+                str_replace("lactate", "Lactate, mmol/L") %>%
+                str_replace("PaO2$", "PaO2, mmHg") %>%
+                str_replace("PF_ratio", "PaO2/FiO2") %>%
+                str_replace("WBC", "WBC, *10^9/L") %>%
+                str_replace("^NEU$", "NEU, *10^9/L") %>%
+                str_replace("^NEUr$", "NEUr, %") %>%
+                str_replace("LYM$", "LYM, *10^9/L") %>%
+                str_replace("LYMr$", "LYMr, %") %>%
+                str_replace("PLT", "PLT, *10^9/L") %>%
+                str_replace("aPTT", "aPTT, s") %>%
+                str_replace("ATIII", "ATIII, %") %>%
+                str_replace("fibrinogen", "Fibrinogen, g/L") %>%
+                str_replace("diuresis", "Diuresis, ml") %>%
+                str_replace("creatinine", "Creatinine, mcmol/L") %>%
+                str_replace("urea", "Urea, mcmol/L") %>%
+                str_replace("protein_total", "Total protein, g/L") %>%
+                str_replace("albumin", "Albumin, g/L") %>%
+                str_replace("bilirubin_total", "Total bilirubin, μmol/L") %>%
+                str_replace("bilirubin_direct", "Direct bilirubin, μmol/L") %>%
+                str_replace("AST", "AST, U/L") %>%
+                str_replace("ALT", "ALT, U/L") %>%
+                str_replace("LDH", "LDH, U/L") %>%
+                str_replace("CRP", "CRP, mg/L") %>%
+                str_replace("PCT", "PCT, μg/L") %>%
+                str_replace("ferritin", "Ferritin, μg/L") %>%
+                str_replace("IL_6", "IL-6, pg/mL") %>%
+                str_replace("NLR", "NEU/LYM") %>%
+                str_replace("SII", "NLR/PLT") %>%
+                str_replace("shock_T0", "Septic shock T0") %>%
+                str_replace("MV_T0", "Mechanical ventilation T0") %>%
+                str_replace("DDimer", "D-dimer, µg/mL FEU") %>%
+                str_replace("presepsin", "Presepsin, pg/mL") %>%
+                str_replace("IL_1b", "IL-1β, pg/mL") %>%
+                str_replace("IL_8", "IL-8, pg/mL") %>%
+                str_replace("IL_10", "IL-10, pg/mL") %>%
+                str_replace("TNFa", "TNF-α, pg/mL") %>%
+                str_replace("EAA", "EAA, units") %>%
+                str_replace("Ig_A", "IgA, g/L") %>%
+                str_replace("Ig_G", "IgG, g/L") %>%
+                str_replace("Ig_M", "IgM, g/L")) %>% 
+  
+  tbl_summary(
+    by = study_id,
+    type = all_continuous() ~ "continuous2",
+    statistic = list(
+      all_continuous() ~ c("{median} [{p25};{p75}]","{N_miss}"),
+      all_categorical() ~ c("{n} ({p}%)")),missing = "no") %>% 
+  modify_caption("**Table 0. Comparative Analysis of Clinical Studies at Time Point 0**")
+```
+
+## Table 1. Comparison of Control and Efferon Groups at Time Point 0 **sepsis_HA_df_cleaned**
+
+-   A dataset **sepsis_HA_df_cleaned_time_point_0** was created based on **sepsis_HA_df_cleaned**, with separation into Efferon and Control groups, filtered at time point 0.
+
+-   The following variables were removed: **shock_dur_T0_first_end** --- duration of the first shock until completion or patient death; **shock_first_end_status** --- status of the first shock completion; **ICU_dur_T0_first_end, ICU_first_end_status** --- patient's stay in the ICU/resuscitation; **MV_dur_T0_first_end, MV_first_end_status** --- invasive mechanical ventilation.
+
+-   A column **Absolute Difference** was added, calculating the absolute difference between percentages for categorical variables and between medians for continuous variables.
+
+```{r}
+sepsis_HA_df_cleaned_time_point_0 <- sepsis_HA_df_cleaned %>%
+  filter(time_point == 0) %>% 
+  select(everything(), -c(shock_dur_T0_first_end, shock_first_end_status, ICU_dur_T0_first_end, ICU_first_end_status, MV_dur_T0_first_end, MV_first_end_status)) 
+
+sepsis_HA_df_cleaned_time_point_0 %>% select(everything(), -c(study_id, study_patient_id, treatment, time_point, unic_patient_id)) %>% 
+  tbl_summary(
+    by = combined_efferon,
+    type = all_continuous() ~ "continuous2",
+    statistic = list(
+      all_continuous() ~ c("{median} [{p25};{p75}]","{N_miss}","{N_nonmiss}"),
+      all_categorical() ~ c("{n} ({p}%)")), missing = "no") %>%
+  modify_table_body(~ .x %>%
+      mutate(absolute_difference = case_when(!is.na(stat_1) & !is.na(stat_2) & grepl("\\(.*%\\)", stat_1) ~
+          abs(as.numeric(gsub(".*\\((.*)%\\).*", "\\1", stat_1)) - 
+              as.numeric(gsub(".*\\((.*)%\\).*", "\\1", stat_2))),
+            
+          !is.na(stat_1) & !is.na(stat_2) & grepl("\\[.*\\]", stat_1) ~
+            abs(as.numeric(gsub("\\[.*\\]", "", stat_1)) - 
+                as.numeric(gsub("\\[.*\\]", "", stat_2))),
+          
+          TRUE ~ NA_real_))) %>%
+  modify_header(absolute_difference = "**Absolute Difference**") %>% 
+  modify_caption("**Table 1. Combined Comparison of Control and Efferon Groups at Time Point 0 Across All Studies**") 
+```
+
+## MANOVA
+
+**Objective**: To compare the experimental and control groups at time point 0, as the study was non-randomized or the groups were recruited in different centers.
+
+**Obvious sources of possible bias:**
+
+**Study A** *L_Sep_2R_4* none
+
+**Study B** *L_mSep_2dC_11* females only; retrospective control group
+
+**Study C** *CL_Sep_3C_6* single-center, parallel recruitment
+
+**Study D** *L_Sep_2dC_7* single-center hemoperfusion group
+
+**Study E** *L_Sep_1C_1* no control group (excluded from the analysis)
+
+**H0: The mean vectors of HP and control groups are equal across all dependent variables:**
+
+● SOFA
+
+● Shock vars (MAP, VIS2020, lactate)
+
+● Hematological vars
+
+● Anthropometric vars (age, BMI)
+
+```{r}
+Study_B <-
+  sepsis_HA_df_cleaned %>% filter(time_point == 0) %>% filter(study_id == "L_mSep_2dC_11") %>%
+    select(c(combined_efferon, SOFA, MAP, VIS2020, PF_ratio, lactate, WBC, NEU, LYM, PLT, aPTT, age))
+
+Study_C <-
+  sepsis_HA_df_cleaned %>% filter(time_point == 0) %>% filter(study_id == "CL_Sep_3C_6") %>%
+    select(c(combined_efferon, SOFA, APACHE2, MAP, VIS2020, IL_6, PF_ratio, WBC, NEU, LYM, PLT, age, BMI))
+
+Study_D <-
+  sepsis_HA_df_cleaned %>% filter(time_point == 0) %>% filter(study_id == "L_Sep_2dC_7") %>%
+    select(c(combined_efferon, SOFA, MAP, VIS2020, PF_ratio, lactate, WBC, NEU, LYM, PLT, aPTT, age))
+
+Study_B_MANOVA <- manova(cbind(SOFA, MAP, VIS2020, PF_ratio, lactate, WBC, NEU, LYM, PLT, aPTT, age) ~ combined_efferon, data = Study_B)
+
+Study_C_MANOVA <- manova(cbind(SOFA, APACHE2, MAP, VIS2020, IL_6, PF_ratio, WBC, NEU, LYM, PLT, age, BMI) ~ combined_efferon, data = Study_C)
+
+Study_D_MANOVA <- manova(cbind(SOFA, MAP, VIS2020, PF_ratio, lactate, WBC, NEU, LYM, PLT, aPTT, age) ~ combined_efferon, data = Study_D)
+
+check_reject_h0 <- function(model) {p_value <- summary(model, test = "Pillai")$stats[1, "Pr(>F)"]
+  if (p_value > 0.05) {cat("Reject H0: No (p-value =", round(p_value, 4),")\n")} else {cat("Reject H0: Yes (p-value =", round(p_value, 4),")\n")}}
+
+cat("\n--- Study B Results ---\n")
+summary(Study_B_MANOVA)
+check_reject_h0(Study_B_MANOVA)
+
+cat("\n--- Study C Results ---\n")
+summary(Study_C_MANOVA)
+check_reject_h0(Study_C_MANOVA)
+
+cat("\n--- Study D Results ---\n")
+summary(Study_D_MANOVA)
+check_reject_h0(Study_D_MANOVA)
+```
+
+## Loading the Dataset for Analysis: **sepsis_HA_df_analyze**
+
+```{r}
+sepsis_HA_df_analyze <- readRDS("sepsis_HA_df_analyze.rds")
+```
+
+## Table 1. Comparison of Control and Efferon Groups at Time Point 0 **sepsis_HA_df_analyze**
+
+1.  A dataset **sepsis_HA_df_analyze_time_point_0** was created based on **sepsis_HA_df_analyze**, with separation into Efferon and Control groups, filtered at time point 0.
+
+2.  The following variables were removed: **shock_dur_T0_first_end** --- duration of the first shock until completion or patient death; **shock_first_end_status** --- status of the first shock completion; **ICU_dur_T0_first_end, ICU_first_end_status** --- patient's stay in the ICU/resuscitation; **MV_dur_T0_first_end, MV_first_end_status** --- invasive mechanical ventilation.
+
+3.  A column **Absolute Difference** was added, calculating the absolute difference between percentages for categorical variables and between medians for continuous variables.
+
+```{r}
+sepsis_HA_df_analyze_time_point_0 <- sepsis_HA_df_analyze %>%
+  filter(time_point == 0) %>% 
+  select(everything(), -c(shock_dur_T0_first_end, shock_first_end_status, ICU_dur_T0_first_end, ICU_first_end_status, MV_dur_T0_first_end, MV_first_end_status)) 
+
+sepsis_HA_df_analyze_time_point_0 %>% select(everything(), -c(study_id, study_patient_id, treatment, time_point, unic_patient_id)) %>% 
+  
+rename_with(function(x) x %>% 
+                str_replace("age", "Age, years") %>% 
+                str_replace("sex", "Sex") %>% 
+                str_replace("weight", "Weight, kg") %>%
+                str_replace("height", "Height, cm") %>%
+                str_replace("BMI", "BMI, kg/m^2") %>% 
+                str_replace("MAP", "MAP, mmHg") %>% 
+                str_replace("lactate", "Lactate, mmol/L") %>% 
+                str_replace("PF_ratio", "PaO2/FiO2") %>% 
+                str_replace("WBC", "WBC, *10^9/L") %>% 
+                str_replace("^NEU$", "NEU, *10^9/L") %>% 
+                str_replace("LYM$", "LYM, *10^9/L") %>% 
+                str_replace("PLT", "PLT, *10^9/L") %>% 
+                str_replace("aPTT", "aPTT, s") %>% 
+                str_replace("fibrinogen", "Fibrinogen, g/L") %>% 
+                str_replace("creatinine", "Creatinine, mcmol/L") %>% 
+                str_replace("bilirubin_total", "Total bilirubin, μmol/L") %>% 
+                str_replace("CRP", "CRP, mg/L") %>% 
+                str_replace("PCT", "PCT, μg/L") %>%
+                str_replace("IL_6", "IL-6, pg/mL") %>% 
+                str_replace("NLR", "NEU/LYM") %>%
+                str_replace("SII", "NLR/PLT") %>%
+                str_replace("shock_T0", "Septic shock T0") %>%
+                str_replace("MV_T0", "Mechanical ventilation T0")) %>% 
+
+  tbl_summary(
+    by = combined_efferon,
+    type = all_continuous() ~ "continuous",
+    statistic = list(
+      all_continuous() ~ c("{median} [{p25};{p75}]"),
+      all_categorical() ~ c("{n} ({p}%)")), missing = "no") %>%
+  modify_table_body(~ .x %>%
+      mutate(absolute_difference = case_when(!is.na(stat_1) & !is.na(stat_2) & grepl("\\(.*%\\)", stat_1) ~
+          abs(as.numeric(gsub(".*\\((.*)%\\).*", "\\1", stat_1)) - 
+              as.numeric(gsub(".*\\((.*)%\\).*", "\\1", stat_2))),
+            
+          !is.na(stat_1) & !is.na(stat_2) & grepl("\\[.*\\]", stat_1) ~
+            abs(as.numeric(gsub("\\[.*\\]", "", stat_1)) - 
+                as.numeric(gsub("\\[.*\\]", "", stat_2))),
+          
+          TRUE ~ NA_real_))) %>%
+  modify_header(absolute_difference = "**Absolute Difference**") %>% 
+  modify_caption("**Table 1. Combined Comparison of Control and Efferon Groups at Time Point 0 Across All Studies**")
+
+```
