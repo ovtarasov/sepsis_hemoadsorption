@@ -1,0 +1,73 @@
+---
+title: "Subgroup analysis"
+author: "Гладышев Никита Сергеевич"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library (survival)
+library (Publish)
+
+```
+
+1. Загрузка данных и создание функции
+
+```{r}
+analysis_data <- read_rds("C:/Users/user-1/Downloads/sepsis_HA_df_cleaned.rds") %>%
+  filter(!is.na(MV_dur_T0_first_end), !is.na(MV_first_end_status)) %>%
+  mutate(
+    # Переменная времени и статуса события для анализа выживания
+    event_time = MV_dur_T0_first_end,
+    event_status = case_when(
+      MV_first_end_status == "death" ~ 1,
+      MV_first_end_status == "recovery" ~ 0,
+      TRUE ~ 0
+    ),
+    # Преобразование переменных в фактор
+    shock_T0 = as.factor(shock_T0),
+    MV_T0 = as.factor(MV_T0),
+    sex = as.factor(sex),
+    treatment = as.factor(combined_efferon)
+  ) %>%
+  # Выбираем необходимые переменные
+  select(unic_patient_id, event_time, event_status, shock_T0, MV_T0, sex, treatment)
+```
+
+2. Подготовка данных для регрессии Кокса
+
+```{r}
+# Построение модели Кокса
+cox_model <- coxph(
+  Surv(event_time, event_status) ~ treatment + shock_T0 + sex,
+  data = analysis_data,
+  id = unic_patient_id
+)
+
+# Вывод результатов
+summary(cox_model)
+```
+
+3. Анализ подгрупп
+
+```{r}
+# Подгрупповой анализ
+subgroup_result <- subgroupAnalysis(
+  cox_model,                     # Модель Кокса
+  treatment = "treatment",       # Переменная лечения
+  subgroups = c("shock_T0", "sex"), # Подгруппы для анализа
+  data = as.data.frame (analysis_data)           # Данные
+)
+
+# Вывод результатов подгруппового анализа
+print(subgroup_result)
+
+# Визуализация подгруппового анализа
+plot(subgroup_result, 
+     xlab = "Hazard Ratio (95% CI)", 
+     main = "Subgroup Analysis")
+```
+
+
