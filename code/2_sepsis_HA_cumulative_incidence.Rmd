@@ -1,0 +1,230 @@
+---
+title: "Cumulative incidence curves"
+author: "Oleg Tarasov"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+# Set default chunk options
+
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = TRUE)
+
+# Set working folders
+
+here::i_am("code/2_sepsis_HA_cumulative_incidence.Rmd")
+
+path_to_scripts = "code/scripts"
+path_to_data = "data"
+path_to_figures = "figures"
+
+# Load required libraries
+
+library(tidyverse)
+library(ggpubr)
+library(knitr)
+library(tidycmprsk)
+library(ggsurvfit)
+
+# Read data from file if necessary
+
+if (!exists("sepsis_HA_df_analyze")) { 
+	sepsis_HA_df_analyze <- readRDS(here::here(path_to_data, "/processed/sepsis_HA_df_analyze.rds")) 
+	}
+
+```
+
+Дополнения к наработкам Никиты
+
+
+```{r fun-create-single-event-df}
+
+# Делаем переменные "смерть, выздоровление и цензурирование"
+
+create_single_event_df <- function(df = sepsis_HA_df_analyze, 
+																 event = c("ICU", "shock", "MV"), 
+																 time_threshold = 48, 
+																 by = unic_patient_id,
+																 treatment = combined_efferon, 
+																 ...) {
+	
+	if (event == "shock") {
+			df_survival <- df %>%
+  		filter(shock_T0 == "TRUE") %>% 
+  		mutate(
+      		event_status = case_when(
+      			shock_first_end_status == "death" ~ "death",
+      			shock_first_end_status == "recovery" ~ "recovery",
+      			is.na(shock_first_end_status) ~ "censored"
+  				),
+    			event_time = shock_dur_T0_first_end
+  		) 
+
+	} else if (event == "MV") {
+			df_survival <- df %>%
+  		filter(MV_T0 == "TRUE") %>% 
+  		mutate(
+      		event_status = case_when(
+      			MV_first_end_status == "death" ~ "death",
+      			MV_first_end_status == "recovery" ~ "recovery",
+      			is.na(MV_first_end_status) ~ "censored"
+  				),
+    			event_time = MV_dur_T0_first_end
+  		) 
+		
+	} else if ({{event}} == "ICU") {
+			df_survival <- df %>%
+			mutate(
+    	    event_status = case_when(
+      			ICU_first_end_status == "death" ~ "death",
+      			ICU_first_end_status == "recovery" ~ "recovery",
+      			is.na(ICU_first_end_status) ~ "censored"
+    			),
+    			event_time = ICU_dur_T0_first_end
+    )
+	} else { stop("Incorrect event type")	}
+	
+	
+# Делаем датафрейм с единичным упоминанием события на пациента
+		
+	single_event_df <- df_survival %>%
+	  mutate(event_status = factor(event_status, levels = c("censored", "recovery", "death")),
+  	       across(where(is.character), as.factor)) %>%
+  	filter(event_time <= {{time_threshold}}) %>% 
+  	group_by({{by}}) %>%
+  	summarise(
+    	treatment = first({{treatment}}),
+    	event_status = first(event_status),
+    	event_time = if_else(all(is.na(event_time)), NA_real_, max(event_time, na.rm = TRUE))
+  	) %>%
+  	ungroup()
+
+	return(single_event_df)
+}
+```
+
+
+```{r fun-ggcuminc-custom}
+
+ggcuminc_custom <- function(df, 
+														outcome = c("death", "recovery"), 
+														xmax = 12*ceiling(max(df[[2]]$event_time) / 12),
+														conf_int = TRUE,
+														risktable = TRUE,
+														pvalue = TRUE
+														) {
+	
+	df %>% ggcuminc(outcome = {{outcome}}[1]) +
+	scale_y_continuous(limits = 0:1, breaks = seq(0, 1, 0.1)) +
+	scale_x_continuous(limits = c(0, xmax), breaks = seq(0, xmax, 6)) +
+	scale_fill_manual(values = c("Control" = "#ea9999", "Efferon" = "#4285f4")) +
+#  labs(
+#    title = paste0("Cumulative Risk of ", stringr::str_to_title({{outcome}})),
+#    y = "Cumulative Probability",
+#    x = "Time, h",
+#    color = "Treatment Group"
+#  ) + 
+  { if (conf_int) add_confidence_interval() } + 
+  { if (risktable) add_risktable(risktable_height = 0.15, 
+  															 size = 5,
+  															 risktable_stats = "cum.event",
+  															 theme = theme_risktable_boxed(
+  															 axis.text.y.size = 14, 
+																 plot.title.size = 18
+  															 )) } +
+  { if (pvalue) add_pvalue(location = "annotation", x = xmax - 3, y = 0.05, size = 6) } +
+  guides(fill = "none") +
+	theme_bw() +
+	theme(
+	axis.title = element_text(size = 18),
+	axis.text = element_text(size = 14),
+	title = element_text(size = 22),
+	legend.position = "none"
+	)
+}	
+
+
+```
+
+
+
+```{r assess-cuminc}
+
+icu_cuminc_death <- cuminc(Surv(event_time, event_status) ~ treatment, 
+										 data = create_single_event_df(event = "ICU", time_threshold = 48))
+
+icu_table_recovery <- icu_cuminc_death$tidy %>% 
+								filter(outcome == "recovery") %>% 
+								mutate(estimate.adj = 1 - estimate, .after = estimate) %>%
+								mutate(conf.low.adj = 1 - conf.high, .after = conf.low) %>%
+								mutate(conf.high.adj = 1 - conf.low, .after = conf.high)
+
+shock_cuminc_death <- cuminc(Surv(event_time, event_status) ~ treatment, 
+										 data = create_single_event_df(event = "shock", time_threshold = 36))
+
+MV_cuminc_death <- cuminc(Surv(event_time, event_status) ~ treatment, 
+										 data = create_single_event_df(event = "MV", time_threshold = 48))
+
+```
+
+
+
+```{r plot-cuminc, fig.height = 8, fig.width=10}
+
+icu_plot_cuminc_death <- icu_cuminc_death %>%	ggcuminc_custom() #+  
+													geom_text(data = data.frame(lab = "Overall in ICU", x = 48, y = 0.9),
+										 					aes(label = lab, x = x, y = y), size = 10,  hjust = 1)
+
+icu_plot_cuminc_both <- icu_plot_cuminc_death + 
+													geom_step(data = icu_table_recovery, 
+																		aes(x = time, y = estimate.adj, colour = strata), 
+																		direction = "hv", 
+																		na.rm = FALSE) +
+													geom_ribbon(data = icu_table_recovery, 
+																		aes(x = time, fill = strata, ymin = conf.low.adj, ymax = conf.high.adj),
+																		na.rm = TRUE,
+																		alpha = 0.2) +
+													geom_text(data = data.frame(lab = c("Recovery", "Death"), x = 18, y = c(0.9, 0.1)),
+										 								aes(label = lab, x = x, y = y), size = 8,  hjust = 1)
+
+# icu_plot_cuminc_both + labs(x = "Time, h")+ theme(title = element_text(size = 24, hjust = 0.5), legend.position = "none", axis.title.y = element_blank() )
+
+
+
+shock_plot_cuminc_death <- shock_cuminc_death %>% ggcuminc_custom() + 
+														geom_text(data = data.frame(lab = "With shock", x = 36, y = 0.9),
+										 					aes(label = lab, x = x, y = y), size = 10, hjust = 1)
+									
+MV_plot_cuminc_death <- MV_cuminc_death %>% ggcuminc_custom() + 
+													geom_text(data = data.frame(lab = "With ventilator", x = 48, y = 0.9),
+										 					aes(label = lab, x = x, y = y), size = 10, hjust = 1)
+```
+
+```{r}
+
+
+
+x <- icu_cuminc_death %>% ggcuminc() + add_risktable() 
+
+class(x)
+
+# x$layers[[2]] <- NULL
+
+x 
+
+```
+
+``` {r, fig.height = 8, fig.width=30}
+ggarrange(icu_plot_cuminc_both, shock_plot_cuminc_death, MV_plot_cuminc_death,
+	nrow = 1, 
+	label.y = "Cumulative Probability",
+	label.x = "Time, h",
+	align = "h",
+	common.legend = T
+	
+)
+
+
+
+
+```
