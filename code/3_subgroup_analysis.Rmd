@@ -88,7 +88,7 @@ significant_vars_sofa <- significant_vars_sofa %>%
 ```
 
 
-### Forestplit
+### Forestplot
 
 ```{r, fig.height=7}
 ggplot(significant_vars_sofa, aes(x = term, y = estimate, ymin = conf.low, ymax = conf.high)) +
