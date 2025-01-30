@@ -16,7 +16,7 @@ library(splines)
 
 ```
 
-# 4.1 Загрузка и подготовка данных к анализу
+### Loading and preparing data for analysis
 
 ```{r}
 analysis_data <- readRDS("C:/Users/krine/Downloads/Telegram Desktop/joint_sepsis.rds") %>%
@@ -46,7 +46,7 @@ analysis_data <- analysis_data %>%
   mutate(across(contains("infection"), ~ as.factor(ifelse(. > 0, "Yes", "No"))))
 ```
 
-# 4.2 Линейная модель по всем переменным
+### Linear model for all variables
 
 ```{r}
 
@@ -70,7 +70,7 @@ lm_results_df <- bind_rows(setNames(lm_results, vars), .id = "model_var")
 
 ```
 
-# 4.3 Поправка на множественные сравнения и отбор переменных взаимодействия
+### Correction for multiple comparisons and selection of interaction variables
 
 ```{r}
 lm_results_df <- lm_results_df %>%
@@ -88,7 +88,7 @@ significant_vars_sofa <- significant_vars_sofa %>%
 ```
 
 
-# 4.4 Форестплот
+### Forestplit
 
 ```{r, fig.height=7}
 ggplot(significant_vars_sofa, aes(x = term, y = estimate, ymin = conf.low, ymax = conf.high)) +
@@ -96,7 +96,7 @@ ggplot(significant_vars_sofa, aes(x = term, y = estimate, ymin = conf.low, ymax 
   geom_hline(yintercept = 0, linetype = "dashed") +
   coord_flip() +
   labs(
-    x = "Предиктор",
+    x = "Predictors",
     y = "Regression Coefficient (95% CI)"
   ) +
   theme_minimal() +
