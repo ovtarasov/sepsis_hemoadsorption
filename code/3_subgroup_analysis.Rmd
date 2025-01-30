@@ -67,28 +67,36 @@ summary (lm_results)
 
 lm_results_df <- bind_rows(setNames(lm_results, vars), .id = "model_var")
 
+
+```
+
+3. Поправка на множественные сравнения и отбор переменных взаимодействия
+
+```{r}
+
+lm_results_df <- lm_results_df %>%
+  mutate(p.adj = p.adjust(p.value, method = "BH"))
+
 significant_vars_sofa <- lm_results_df %>%
-  filter(p.value < 0.05) %>%
-  arrange(p.value)
+  filter(grepl(":", term)) %>%
+#  filter(p.adj < 0.05) %>%
+  arrange(p.adj)
 
 significant_vars_sofa <- significant_vars_sofa %>%
     mutate(conf.low = estimate - 1.96 * std.error,
            conf.high = estimate + 1.96 * std.error)
-significant_vars_sofa
 
-mean_values <- as.matrix(significant_vars_sofa$estimate)
-lower_values <- as.matrix(significant_vars_sofa$conf.low)
-upper_values <- as.matrix(significant_vars_sofa$conf.high)
 ```
 
-3. Форестплот
 
-```{r, fig.height=10}
+4. Форестплот
+
+```{r}
 forestplot(
   labeltext = significant_vars_sofa$term,
-  mean = mean_values,
-  lower = lower_values,
-  upper = upper_values,
+  mean = significant_vars_sofa$estimate,
+  lower = significant_vars_sofa$conf.low,
+  upper = significant_vars_sofa$conf.high,
   title = "Эффект гемосорбции в зависимости от предиктора",
   xlab = "Regression Coefficient (95% CI)"
 )
