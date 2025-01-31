@@ -1,0 +1,57 @@
+---
+title: "United_datasets"
+author: "Anastasiia Potamoshneva"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+```{r}
+sepsis <- readRDS("sepsis_HA_df_analyze.rds") 
+sepsis_source <- readRDS("sepsis_source.rds")
+sepsis_infection <- readRDS("sepsis_SI_and_infections.rds")
+```
+
+## Code for joining 3 datasets into 1
+
+```{r}
+sepsis_source <- sepsis_source %>% 
+  mutate(study_patient_id = gsub(pattern = "К", replacement = "K", system_patient_id), .before = study_id) %>% 
+  mutate(unic_patient_id = paste(study_id, system_patient_id, sep = "_"), .after = study_id) %>% 
+  select(-system_patient_id) %>%
+  ungroup() %>% 
+  mutate(source = as.factor(source),
+         source_cat = as.factor(source_cat)) %>% 
+  group_by(source_cat) %>%
+  mutate(source_frequency = n()) %>%  
+  ungroup() %>% 
+  group_by(unic_patient_id) %>%
+  slice_min(order_by = source_frequency, with_ties = FALSE) %>%  
+  ungroup() %>%
+  select(-c(source_frequency, study_patient_id,study_id)) 
+```
+
+```{r}
+sepsis_infection <- sepsis_infection %>% 
+  mutate(study_patient_id = gsub(pattern = "К", replacement = "K", study_patient_id)) %>% 
+  mutate(unic_patient_id = paste(study_id, study_patient_id, sep = "_"), .after = study_patient_id) %>% 
+  ungroup() %>% 
+  select(-c(treatment, study_patient_id,study_id)) %>% 
+  mutate(time_point = as.factor(0),
+         infection_g_negative = as.factor(infection_g_negative),
+         infection_g_positive = as.factor(infection_g_positive),
+         infection_virus = as.factor(infection_virus),
+         infection_fungi = as.factor(infection_fungi))
+```
+
+```{r}
+joint_sepsis <- sepsis %>%
+  left_join(sepsis_source, by = "unic_patient_id") %>%
+  left_join(sepsis_infection, by = c("unic_patient_id", "time_point")) 
+
+saveRDS(joint_sepsis, "joint_sepsis.rds")
+
+```
