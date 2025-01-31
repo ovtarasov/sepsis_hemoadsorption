@@ -332,6 +332,14 @@ label_text <- cbind(
   Significance = forest_data_time_point_0$significance
 )
 
+png(
+  filename = "../figures/ForestNoLog.png",
+  width    = 9.7,
+  height   = 6,
+  units    = "in",
+  res      = 300
+)
+
 forestplot(
   labeltext = label_text,
   mean = forest_data_time_point_0$odds_ratio,
@@ -350,6 +358,7 @@ forestplot(
   txt_gp = fpTxtGp(xlab = gpar(fontsize = 20), ticks = gpar(fontsize = 20))
 )
 
+dev.off()
 ```
 
 ### Variables with log-transformation
@@ -423,6 +432,14 @@ label_text_log <- cbind(
   Significance = results_log_df$significance
 )
 
+png(
+  filename = "../figures/ForestLog.png",
+  width    = 9.7,
+  height   = 6,
+  units    = "in",
+  res      = 300
+)
+
 forestplot(
   labeltext = label_text_log,
   mean = results_log_df$odds_ratio,
@@ -440,6 +457,8 @@ forestplot(
   title = "Forest plot (variables with log-transformation)",
   txt_gp = fpTxtGp(xlab = gpar(fontsize = 20), ticks = gpar(fontsize = 20))
 )
+
+dev.off()
 ```
 
 ## Multivariate Analysis
