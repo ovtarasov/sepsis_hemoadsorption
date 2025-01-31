@@ -1,0 +1,359 @@
+---
+title: "Treatment impact on parameters"
+author: "Anastasiia Potamoshneva"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(ggplot2)
+library(broom)
+library(ggfortify)
+library(ggResidpanel)
+library(performance)
+library(lmtest)
+library(sandwich)
+library(car)
+library(DT)
+library(forestplot)
+```
+
+## Data loading
+
+```{r}
+sepsis <- readRDS("C:\\Users\\user\\RStudio_projects\\data_sepsis\\joint_sepsis.rds") 
+```
+
+## Last Observation Carried Forward imputation
+
+```{r}
+numeric_vars <- sepsis %>% 
+  select(where(is.numeric)) %>% 
+  names()
+
+LOCF_sepsis <- sepsis %>%
+  group_by(study_patient_id) %>%
+  mutate(across(all_of(numeric_vars), ~ zoo::na.locf(.x, na.rm = FALSE))) %>%
+  ungroup() 
+  
+```
+
+## Dataset preparation for modelling
+
+```{r}
+prep_sepsis <- LOCF_sepsis %>%
+  filter(time_point %in% c(0, 3)) %>% 
+  select(study_patient_id, time_point, combined_efferon, age, sex, SOFA, NLR, 
+         where(is.numeric), -c(weight, height, BMI, NEU, LYM, APACHE2)) %>% 
+  mutate(IL_6 = if_else(IL_6 == 0, 3, IL_6)) %>% 
+  mutate(PCT = if_else(PCT == 0, 0.1, PCT))
+
+```
+
+```{r}
+prep_sepsis_long <- prep_sepsis %>%
+  pivot_longer(
+    cols = SOFA:IL_6, 
+    names_to = "feature",
+    values_to = "value"   
+  ) %>%
+  select(
+    study_patient_id, 
+    time_point,
+    feature,
+    value,
+    age,
+    sex, 
+    combined_efferon,
+    SI_CISCIO
+  ) %>% 
+  mutate(value = round(as.numeric(value), 3))
+```
+
+```{r}
+add_covariates <- prep_sepsis %>%  
+  select(
+    study_patient_id,
+    time_point,
+    SOFA,
+    NLR) %>% 
+ group_by(study_patient_id) %>% 
+  mutate(
+    SOFA_0 = first(SOFA[time_point == 0]),
+    NLR_0 = first(NLR[time_point == 0])  
+  ) %>%
+  ungroup() %>% 
+  select(-c(SOFA, NLR, time_point))
+```
+
+```{r, warning = FALSE}
+prep_sepsis_wide <- prep_sepsis_long %>%
+  group_by(study_patient_id) %>% 
+  pivot_wider(
+    names_from = time_point,          
+    values_from = value,              
+    names_prefix = "value_"           
+  )  %>% 
+  ungroup() %>% 
+  left_join(add_covariates, by = "study_patient_id") %>% 
+  select(
+    study_patient_id,                
+    feature,
+    value_0,
+    value_3,
+    age,
+    sex,
+    combined_efferon,
+    SI_CISCIO,
+    SOFA_0,
+    NLR_0) %>% 
+  distinct()
+  
+```
+
+```{r}
+vis_patients_to_exclude <- prep_sepsis_wide %>%
+  filter(feature == "VIS2020", value_0 == 0) %>%
+  distinct(study_patient_id)
+
+prep_sepsis_wide <- prep_sepsis_wide %>%
+  anti_join(vis_patients_to_exclude, by = "study_patient_id") 
+```
+
+
+## Initial models diagnostics
+
+```{r}
+models <- prep_sepsis_wide %>% 
+  group_by(feature) %>% 
+  mutate(
+    value_3_std = (value_3 - mean(value_3, na.rm = TRUE)) / sd(value_3, na.rm = TRUE) # Standardization
+  ) %>%
+  nest() %>%
+  mutate(
+    model = map2(
+      feature,
+      data,
+      ~ if (.x %in% c("SOFA", "NLR")) {  
+          lm(value_3 ~ value_0 + combined_efferon + age + sex + SI_CISCIO, data = .y) 
+        } else {
+          lm(value_3 ~ value_0 + combined_efferon + SOFA_0 + NLR_0 + age + sex+ SI_CISCIO, data = .y)  
+        }
+    ),
+    tidy_model = map(model, tidy),
+    formula = map_chr(model, ~ paste(deparse(formula(.x)), collapse = " ")),
+    diagnostic_plots = map2(model, feature, ~ {
+      autoplot(.x, which = 1:4, ncol = 2) +  
+        ggtitle(paste("Variable:", .y)) +
+        theme_minimal()
+    })
+  )
+
+models %>%
+  select(feature, tidy_model) %>%
+  unnest(cols = tidy_model) %>%
+  print()
+
+models %>%
+  pull(diagnostic_plots) %>%
+  walk(print)
+
+```
+
+### Checking models formulas
+
+```{r}
+models %>%
+  select(feature, formula) %>%
+  print()
+
+```
+
+### Log-transform variables 
+
+```{r}
+
+features <- c( "IL_6", "PCT", "aPTT", "bilirubin_total", "creatinine", "lactate")
+
+
+log_models <- prep_sepsis_wide %>%
+  filter(feature %in% features) %>%
+  group_by(feature) %>%
+  nest() %>%
+  mutate(
+    model = map(data, ~ lm(I(log2(.x$value_3)) ~ I(log2(.x$value_0)) + combined_efferon + SOFA_0 + NLR_0 + age + sex + SI_CISCIO, data = .x)),
+    tidy_model = map(model, tidy), 
+    diagnostics = map(model, autoplot), 
+    formula = map_chr(model, ~ paste(deparse(formula(.x)), collapse = " ")) 
+  )
+log_models %>%
+  select(feature, tidy_model) %>%
+  unnest(cols = tidy_model) %>%
+  print() 
+
+log_models %>%
+  mutate(
+    plots = map2(model, feature, ~ {
+      p <- autoplot(.x, which = 1:4, ncol = 2) +
+        ggtitle(paste("Variable:", .y)) +
+        theme_minimal()
+      print(p)  
+      return(p)
+    })
+  )
+
+
+log_models %>%
+  select(feature, formula) %>%
+  print()
+```
+
+## Joint models diagnostics
+
+```{r}
+  
+log_models <- prep_sepsis_wide %>%
+  group_by(feature) %>%
+  mutate(
+    value_3_standardized = ifelse(
+      feature %in% features, 
+      value_3, 
+      (value_3 - mean(value_3, na.rm = TRUE)) / sd(value_3, na.rm = TRUE)
+    )
+  ) %>%
+  nest() %>%
+  mutate(
+    model = map2(
+      feature,
+      data,
+      ~ if (.x %in% features) {
+        
+          lm(I(log2(value_3)) ~ I(log2(value_0)) + combined_efferon + SOFA_0 + NLR_0 + age + sex + SI_CISCIO, data = .y)
+        } else if (.x %in% c("SOFA", "NLR")) {
+          lm(value_3_standardized ~ value_0 + combined_efferon + age + sex + SI_CISCIO, data = .y)
+        } else {
+          lm(value_3_standardized ~ value_0 + combined_efferon + SOFA_0 + NLR_0 + age + sex + SI_CISCIO, data = .y)
+        }
+    ),
+    tidy_model = map(model, tidy), 
+    diagnostics = map(model, autoplot),  
+    formula = map_chr(model, ~ paste(deparse(formula(.x)), collapse = " "))  
+  )
+
+log_models %>%
+  select(feature, tidy_model) %>%
+  unnest(cols = tidy_model) %>%
+  print()
+
+log_models %>%
+  mutate(
+    plots = map2(model, feature, ~ {
+      p <- autoplot(.x, which = 1:4, ncol = 2) +
+        ggtitle(paste("Variable:", .y)) +
+        theme_minimal()
+      print(p)
+      return(p) 
+    })
+  )
+```
+### Extracting summary model formulas
+
+```{r}
+log_models %>%
+  select(feature, formula) %>%
+  print()
+```
+
+## A summary table for treatment regression coefficients with heteroscedasticity and multiplicity adjustments
+
+```{r, warning = FALSE}
+log_models_corrected <- log_models %>%
+  mutate(
+    corrected_model = map(model, ~ coeftest(.x, vcov. = vcovHC(.x, type = "HC1"))), 
+    tidy_corrected = map(corrected_model, ~ broom::tidy(.x, conf.int = TRUE))  
+  )
+
+log_models_corrected_table <- log_models_corrected  %>% 
+  select(feature, tidy_corrected)  %>% 
+    unnest() %>% 
+  filter(term == "combined_efferonEfferon") %>% 
+  mutate(
+    feature = ifelse(feature %in% features, paste0("log2(", feature, ")"), feature)
+  ) %>% 
+  ungroup() %>% 
+  mutate(
+    p.adj.BH = p.adjust(p.value, method = "BH")) %>% 
+  mutate(across(where(is.numeric), ~ round(., 3))) %>% 
+  mutate(significance = case_when(p.value < 0.001 ~ "***", p.value < 0.01 ~ "**", p.value < 0.05 ~ "*", TRUE ~ ""))
+
+datatable(log_models_corrected_table, options = list(pageLength = 10))
+```
+
+### Extracting log-transformed variables:
+
+```{r}
+log_data <- log_models_corrected_table %>%
+  filter(feature %in% paste0("log2(", features, ")"))
+```
+
+### Extracting non-log-transformed variables:
+
+```{r}
+non_log_data <- log_models_corrected_table %>%
+  filter(!feature %in% paste0("log2(", features, ")"))
+```
+
+
+## Forest plot for variables with log-transformation
+
+```{r}
+label_text_log <- cbind(
+  Variable = log_data$feature,
+  Estimate = sprintf("%.2f", log_data$estimate),
+  CI = sprintf("[%.2f, %.2f]", log_data$conf.low, log_data$conf.high),
+  Significance = log_data$significance)
+
+forestplot(
+  labeltext = label_text_log,
+  mean = log_data$estimate,
+  lower = log_data$conf.low,
+  upper = log_data$conf.high,
+  is.summary = FALSE,
+  xlab = "Exponentiated Coefficient (95% CI)",
+  zero = 0, boxsize = 0.3,
+  col = fpColors(box = "blue", line = "darkblue", zero = "red"),
+  title = "Forest plot (variables with log-transformation)",
+  txt_gp = fpTxtGp(xlab = gpar(fontsize = 20), ticks = gpar(fontsize = 20)),
+  clip = c(-2, 2)  
+)
+```
+
+
+## Forest plot for variables without log-transformation
+
+```{r}
+label_text_non_log <- cbind(
+  Variable = non_log_data$feature,
+  Estimate = sprintf("%.2f", non_log_data$estimate),
+  CI = sprintf("[%.2f, %.2f]", non_log_data$conf.low, non_log_data$conf.high),
+  Significance = non_log_data$significance)
+
+forestplot(
+  labeltext = label_text_non_log,
+  mean = non_log_data$estimate,
+  lower = non_log_data$conf.low,
+  upper = non_log_data$conf.high,
+  is.summary = FALSE,
+  xlab = "Standardized Coefficient Estimate (95% CI)",
+  zero = 0, boxsize = 0.3,
+  col = fpColors(box = "blue", line = "darkblue", zero = "red"),
+  title = "Forest plot (variables without log-transformation)",
+  txt_gp = fpTxtGp(xlab = gpar(fontsize = 20), ticks = gpar(fontsize = 20)),
+  clip = c(-2, 2)  
+)
+```
+
+
+
+
