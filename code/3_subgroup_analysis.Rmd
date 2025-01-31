@@ -15,7 +15,7 @@ library(ggplot2)
 library(stringr)
 library(forestplot)
 library(grid)
-
+library(tidyr)
 ```
 
 ### Loading and preparing data for analysis
@@ -83,62 +83,90 @@ significant_vars_sofa <- lm_results_df %>%
 
 ```
 
+### Preprocessing for forestplot
 
-### Forestplot
-
-```{r, fig.height=6}
+```{r}
 cat_vars <- c("source_cat", "infection_g_negative", "infection_g_positive", 
                     "infection_virus", "infection_fungi", "hospt_quality_level")
 
 df_cat <- significant_vars_sofa %>%
-  filter(str_detect(term, str_c(cat_vars, collapse = "|")))
+  filter(str_detect(term, str_c(cat_vars, collapse = "|"))) %>%
+  mutate(
+    conf.low = estimate - 1.96 * std.error,
+    conf.high = estimate + 1.96 * std.error,
+    significance = case_when(
+      p.value < 0.001 ~ "***",
+      p.value < 0.01 ~ "**",
+      p.value < 0.05 ~ "*",
+      TRUE ~ ""
+    )
+  ) %>%
+  arrange(desc(estimate)) %>%
+  mutate(term = as.character(term)) %>%
+  drop_na()
 
-forest_data_cat <- df_cat %>%
-    mutate(conf.low = estimate - 1.96 * std.error,
-           conf.high = estimate + 1.96 * std.error) %>%
-  select(term, estimate, conf.low, conf.high) %>%
-  arrange(desc(estimate))
-
-label_text_cat <- forest_data_cat$term 
-
-forestplot(
-  labeltext = label_text_cat,
-  mean = forest_data_cat$estimate,
-  lower = forest_data_cat$conf.low,
-  upper = forest_data_cat$conf.high,
-  is.summary = FALSE,
-  xlab = "Regression Coefficient (95% CI)",
-  zero = 0, boxsize = 0.3,
-  col = fpColors(box = "blue", line = "darkblue", zero = "red"),
-  title = "Forest plot (Category Variables)",
-  txt_gp = fpTxtGp(xlab = gpar(fontsize = 14), ticks = gpar(fontsize = 14))
+label_text_cat <- cbind(
+  Variable = df_cat$term,
+  Estimate = sprintf("%.2f", df_cat$estimate),
+  CI = sprintf("[%.2f, %.2f]", df_cat$conf.low, df_cat$conf.high),
+  Significance = df_cat$significance
 )
 
 df_num <- significant_vars_sofa %>%
-  filter(!str_detect(term, str_c(cat_vars, collapse = "|")))
-
-df_num_scaled <- df_num %>%
-  mutate(across(c(estimate, std.error), ~ (. - mean(., na.rm = TRUE)) / sd(., na.rm = TRUE))) %>%
+  filter(!str_detect(term, str_c(cat_vars, collapse = "|"))) %>%
   mutate(
     conf.low = estimate - 1.96 * std.error,
-    conf.high = estimate + 1.96 * std.error
-  )
+    conf.high = estimate + 1.96 * std.error,
+    significance = case_when(
+      p.value < 0.001 ~ "***",
+      p.value < 0.01 ~ "**",
+      p.value < 0.05 ~ "*",
+      TRUE ~ ""
+    )
+  ) %>%
+  arrange(desc(estimate)) %>%
+  mutate(term = as.character(term)) %>%
+  drop_na()
 
-label_text_num <- forest_data_num$term
+label_text_num <- cbind(
+  Variable = df_num$term,
+  Estimate = sprintf("%.2f", df_num$estimate),
+  CI = sprintf("[%.2f, %.2f]", df_num$conf.low, df_num$conf.high),
+  Significance = df_num$significance
+)
+
+```
+
+
+### Forestplots
+
+```{r, fig.height=6}
 
 forestplot(
-  labeltext = label_text_num,
-  mean = forest_data_num$estimate,
-  lower = forest_data_num$conf.low,
-  upper = forest_data_num$conf.high,
+  labeltext = label_text_cat,
+  mean = df_cat$estimate,
+  lower = df_cat$conf.low,
+  upper = df_cat$conf.high,
   is.summary = FALSE,
   xlab = "Regression Coefficient (95% CI)",
   zero = 0, boxsize = 0.3,
   col = fpColors(box = "blue", line = "darkblue", zero = "red"),
-  title = "Forest plot (Standardized Numerical Variables)",
-  txt_gp = fpTxtGp(xlab = gpar(fontsize = 14), ticks = gpar(fontsize = 14))
+  title = "Forest plot (Categorical Variables)",
+  txt_gp = fpTxtGp(xlab = gpar(fontsize = 20), ticks = gpar(fontsize = 20))
 )
 
+forestplot(
+  labeltext = label_text_num,
+  mean = df_num$estimate,
+  lower = df_num$conf.low,
+  upper = df_num$conf.high,
+  is.summary = FALSE,
+  xlab = "Regression Coefficient (95% CI)",
+  zero = 0, boxsize = 0.3,
+  col = fpColors(box = "blue", line = "darkblue", zero = "red"),
+  title = "Forest plot (Numerical Variables)",
+  txt_gp = fpTxtGp(xlab = gpar(fontsize = 20), ticks = gpar(fontsize = 20))
+)
 ```
 
 
