@@ -18,7 +18,7 @@ library(forestplot)
 ## Loading the Dataset for Analysis
 
 ```{r}
-sepsis_HA_df_analyze <- readRDS("sepsis_HA_df_analyze.rds")
+sepsis_HA_df_analyze <- readRDS("C:/Users/krine/Downloads/Telegram Desktop/joint_sepsis.rds")
 ```
 
 ## Data Preprocessing
@@ -30,25 +30,43 @@ NLR (Neutrophil-to-Lymphocyte Ratio) [10.1016/j.jtauto.2022.100159]. The categor
 Age (18--44, 45--59, 60--74, 75+)
 
 ```{r}
-sepsis_HA_df_analyze <- sepsis_HA_df_analyze %>% 
-  mutate(NLR_category = case_when(
-    is.na(NLR) ~ NA_character_,
-    # NLR >= 0.1 & NLR <= 0.7 ~ "Neutropenia",
-    NLR >= 0.1 & NLR <= 2 ~ "Normal range",
-    NLR > 2 & NLR <= 3 ~ "Grey zone",
-    NLR > 3 & NLR <= 7 ~ "Mild to moderate inflammation",
-    NLR > 7 & NLR <= 11 ~ "Moderate to severe inflammation",
-    NLR > 11 & NLR <= 17 ~ "Severe inflammation",
-    NLR > 17 & NLR <= 23 ~ "Critical inflammation: septic shock",
-    NLR > 23 ~ "Critical inflammation: politrauma, cancer, surgery")) %>% 
+sepsis_HA_df_analyze <- sepsis_HA_df_analyze %>%
+  mutate(
+    NLR_category = case_when(
+      is.na(NLR) ~ NA_character_,
+      # NLR >= 0.1 & NLR <= 0.7 ~ "Neutropenia",
+      NLR >= 0.1 & NLR <= 2 ~ "Normal range",
+      NLR > 2 & NLR <= 3 ~ "Grey zone",
+      NLR > 3 & NLR <= 7 ~ "Mild to moderate inflammation",
+      NLR > 7 & NLR <= 11 ~ "Moderate to severe inflammation",
+      NLR > 11 & NLR <= 17 ~ "Severe inflammation",
+      NLR > 17 & NLR <= 23 ~ "Critical inflammation: septic shock",
+      NLR > 23 ~ "Critical inflammation: politrauma, cancer, surgery"
+    )
+  ) %>%
   
-  mutate(NLR_category = factor(NLR_category, levels = c("Neutropenia", "Normal range", "Grey zone", "Mild to moderate inflammation", "Moderate to severe inflammation", "Severe inflammation", "Critical inflammation: septic shock", "Critical inflammation: politrauma, cancer, surgery"))) %>%
+  mutate(NLR_category = factor(
+    NLR_category,
+    levels = c(
+      "Neutropenia",
+      "Normal range",
+      "Grey zone",
+      "Mild to moderate inflammation",
+      "Moderate to severe inflammation",
+      "Severe inflammation",
+      "Critical inflammation: septic shock",
+      "Critical inflammation: politrauma, cancer, surgery"
+    )
+  )) %>%
   
-  mutate(age_category = case_when(
+  mutate(
+    age_category = case_when(
       age >= 18 & age <= 44 ~ "18–44",
       age >= 45 & age <= 59 ~ "45–59",
       age >= 60 & age <= 74 ~ "60–74",
-      age >= 75 ~ "75+")) %>% 
+      age >= 75 ~ "75+"
+    )
+  ) %>%
   
   mutate(age_category = factor(age_category, levels = c("18–44", "45–59", "60–74", "75+")))
 ```
@@ -60,37 +78,68 @@ Variables: ICU_dur_T0_first_end (duration): length of ICU stay. ICU_first_end_st
 Patients who died within 6 days were classified as "early mortality", those who died after 6 days as "late mortality", and those who recovered as "recovery".
 
 ```{r}
-sepsis_HA_df_analyze <- sepsis_HA_df_analyze %>% 
+sepsis_HA_df_analyze <- sepsis_HA_df_analyze %>%
   mutate(
     death_category = case_when(
-      ICU_first_end_status == "death" & ICU_dur_T0_first_end >= 0 & ICU_dur_T0_first_end <= 6 ~ "early mortality",
-      ICU_first_end_status == "death" & ICU_dur_T0_first_end > 6 ~ "late mortality",
-      ICU_first_end_status == "recovery" ~ "recovery")) %>% 
-  mutate(death_category = factor(death_category, levels = c("early mortality", "late mortality", "recovery"))) 
+      ICU_first_end_status == "death" &
+        ICU_dur_T0_first_end >= 0 &
+        ICU_dur_T0_first_end <= 6 ~ "early mortality",
+      ICU_first_end_status == "death" &
+        ICU_dur_T0_first_end > 6 ~ "late mortality",
+      ICU_first_end_status == "recovery" ~ "recovery"
+    )
+  ) %>%
+  mutate(death_category = factor(
+    death_category,
+    levels = c("early mortality", "late mortality", "recovery")
+  )) 
 ```
 
 ### 3. Histograms of variable distribution
 
-Log transformation is required for: WBC, PLT, creatinine, VIS2020, NEU, LYM, bilirubin_total, NLR, SII, CRP, PCT, shock_dur_T0_first_end, ICU_dur_T0_first_end, MV_dur_T0_first_end, lactate, aPTT; not required for: age, APACHE2, SOFA, PF_ratio, weight, MAP, fibrinogen.
+Log transformation is required for: WBC, PLT, creatinine, VIS2020, NEU, LYM, bilirubin_total, NLR, SII, CRP, PCT, shock_dur_T0_first_end, ICU_dur_T0_first_end, MV_dur_T0_first_end, lactate, aPTT; not required for: age, SOFA, PF_ratio, weight, MAP, fibrinogen.
 
 Applying log(Value) without adding a small constant causes errors for zeros and excludes them from the plot, leaving only positive values in the distribution.
 
 ```{r, fig.width=9, fig.height=9}
 selected_vars <- sepsis_HA_df_analyze %>%
   filter(time_point == 0) %>%
-  dplyr::select("age", "SOFA", "MAP", "WBC", "PLT", "creatinine", "VIS2020", 
-                "NEU", "LYM", "bilirubin_total", "NLR", "SII", "weight", 
-                "CRP", "PF_ratio", "PCT", "APACHE2", "shock_dur_T0_first_end", "ICU_dur_T0_first_end", "MV_dur_T0_first_end", "lactate", "fibrinogen", "aPTT") %>% pivot_longer(cols = everything(), names_to = "Variable", values_to = "Value")
+  dplyr::select(
+    "age",
+    "SOFA",
+    "MAP",
+    "WBC",
+    "PLT",
+    "creatinine",
+    "VIS2020",
+    "NEU",
+    "LYM",
+    "bilirubin_total",
+    "NLR",
+    "SII",
+    "weight",
+    "CRP",
+    "PF_ratio",
+    "PCT",
+    "shock_dur_T0_first_end",
+    "ICU_dur_T0_first_end",
+    "MV_dur_T0_first_end",
+    "lactate",
+    "fibrinogen",
+    "aPTT"
+  ) %>% pivot_longer(cols = everything(),
+                     names_to = "Variable",
+                     values_to = "Value")
 ggplot(selected_vars, aes(x = Value)) +
   geom_histogram() +
-  facet_wrap(~ Variable, scales = "free", ncol = 5) +
+  facet_wrap( ~ Variable, scales = "free", ncol = 5) +
   theme_bw() + labs(title = "Distribution of Variables")
 
-selected_vars %>% 
-  mutate(Value = log(Value)) %>% 
+selected_vars %>%
+  mutate(Value = log(Value)) %>%
   ggplot(aes(x = Value)) +
   geom_histogram() +
-  facet_wrap(~ Variable, scales = "free", ncol = 5) +
+  facet_wrap( ~ Variable, scales = "free", ncol = 5) +
   theme_bw() + labs(title = "Distribution of Log-transformed Variables")
 ```
 
@@ -101,25 +150,66 @@ Log-transformation of selected variables with an adaptive epsilon based on 10% o
 ```{r, fig.width=9, fig.height=9}
 add_epsilon <- function(x, factor = 0.1) {
   epsilon <- min(x[x > 0], na.rm = TRUE) * factor
-  log(x + epsilon)}
+  log(x + epsilon)
+}
 
 sepsis_HA_df_analyze_log <- sepsis_HA_df_analyze %>%
   filter(time_point == 0) %>%
-  mutate(across(c(WBC, PLT, creatinine, VIS2020, NEU, LYM, bilirubin_total, 
-                  NLR, SII, CRP, PCT, shock_dur_T0_first_end, 
-                  ICU_dur_T0_first_end, MV_dur_T0_first_end, lactate, aPTT),
-                ~ add_epsilon(.))) 
+  mutate(across(
+    c(
+      WBC,
+      PLT,
+      creatinine,
+      VIS2020,
+      NEU,
+      LYM,
+      bilirubin_total,
+      NLR,
+      SII,
+      CRP,
+      PCT,
+      shock_dur_T0_first_end,
+      ICU_dur_T0_first_end,
+      MV_dur_T0_first_end,
+      lactate,
+      aPTT
+    ),
+    ~ add_epsilon(.)
+  ))
 
 sepsis_HA_df_analyze_log_longer <- sepsis_HA_df_analyze_log %>%
-    dplyr::select("age", "SOFA", "MAP", "WBC", "PLT", "creatinine", "VIS2020", 
-                "NEU", "LYM", "bilirubin_total", "NLR", "SII", "weight", 
-                "CRP", "PF_ratio", "PCT", "APACHE2", "shock_dur_T0_first_end", "ICU_dur_T0_first_end", "MV_dur_T0_first_end", "lactate", "fibrinogen", "aPTT") %>% 
-  pivot_longer(cols = everything(), names_to = "Variable", values_to = "Value")
+  dplyr::select(
+    "age",
+    "SOFA",
+    "MAP",
+    "WBC",
+    "PLT",
+    "creatinine",
+    "VIS2020",
+    "NEU",
+    "LYM",
+    "bilirubin_total",
+    "NLR",
+    "SII",
+    "weight",
+    "CRP",
+    "PF_ratio",
+    "PCT",
+    "shock_dur_T0_first_end",
+    "ICU_dur_T0_first_end",
+    "MV_dur_T0_first_end",
+    "lactate",
+    "fibrinogen",
+    "aPTT"
+  ) %>%
+  pivot_longer(cols = everything(),
+               names_to = "Variable",
+               values_to = "Value")
 
 
 ggplot(sepsis_HA_df_analyze_log_longer, aes(x = Value)) +
   geom_histogram() +
-  facet_wrap(~ Variable, scales = "free", ncol = 5) +
+  facet_wrap( ~ Variable, scales = "free", ncol = 5) +
   theme_bw() + labs(title = "Distribution of Variables")
 ```
 
@@ -128,18 +218,28 @@ ggplot(sepsis_HA_df_analyze_log_longer, aes(x = Value)) +
 256 patients were admitted to the ICU, with a sepsis mortality rate of 49.2%.
 
 ```{r}
-death_count <- sum(sepsis_HA_df_analyze$ICU_first_end_status == "death" & sepsis_HA_df_analyze$time_point == 0)
+death_count <- sum(
+  sepsis_HA_df_analyze$ICU_first_end_status == "death" &
+    sepsis_HA_df_analyze$time_point == 0
+)
 total_count <- sum(sepsis_HA_df_analyze$time_point == 0)
 mortality_rate <- (death_count / total_count) * 100
 
-cat("Total patients:", total_count, "\n", "Mortality rate:", round(mortality_rate, 1), "%\n")
+cat(
+  "Total patients:",
+  total_count,
+  "\n",
+  "Mortality rate:",
+  round(mortality_rate, 1),
+  "%\n"
+)
 ```
 
 ## Predictors of mortality in patients with sepsis [10.1097/MD.0000000000035335]
 
 Univariate and multivariate logistic regression analysis of risk factors associated with mortality in patients with sepsis.
 
-Statistically significant variables in the baseline comparison (unadjusted univariate logistic regression analysis): age, APACHE II, SOFA, PLT, DDimer, PF_ratio, albumin, creatinine, lactate.
+Statistically significant variables in the baseline comparison (unadjusted univariate logistic regression analysis): age, SOFA, PLT, DDimer, PF_ratio, albumin, creatinine, lactate.
 
 Statistically significant variables in multivariate logistic regression analysis (adjusted): age, lactate, PLT (platelet count).
 
@@ -149,21 +249,6 @@ The logistic regression model predicts the probability of the outcome "death" re
 
 ### Variables without log-transformation
 
-Statistically significant predictors of death: sex, age, MV_T0, SOFA, VIS2020, APACHE2, lactate.
-
-1.  **sex**: Male have 2.01 times higher odds of death compared to female.
-
-2.  **age**: For every additional year of age, the odds of death increase by 4% (OR = 1.04).
-
-3.  **MV_T0**: Being on mechanical ventilation substantially increases the risk of death (2.56 times higher odds).
-
-4.  **SOFA**: Higher SOFA scores are strongly associated with increased mortality risk. Each one-point increase in the SOFA score is associated with a 21% increase in the odds of death (OR = 1.21).
-
-5.  **VIS2020**: Even slight increases in VIS2020 are linked to higher odds of death. Although the effect size is small, this result is statistically significant.
-
-6.  **APACHE2**: Higher APACHE2 scores are significant predictors of increased mortality. Each one-point increase in the APACHE2 score increases the odds of death by 17% (OR = 1.17).
-
-7.  **lactate**: Elevated lactate levels are strongly associated with an increased risk of death in patients with sepsis. Each one-unit increase in lactate is linked to a 40% increase in the odds of death (OR = 1.40).
 
 ```{r, fig.width=8, fig.height=8}
 sepsis_HA_df_analyze$ICU_first_end_status <- relevel(sepsis_HA_df_analyze$ICU_first_end_status, ref = "recovery") # baseline category recovery
@@ -172,13 +257,39 @@ sepsis_HA_df_analyze$sex <- relevel(sepsis_HA_df_analyze$sex, ref = "female") # 
 # code can be used for any time point
 time_points <- unique(sepsis_HA_df_analyze$time_point)
 
-predictors <- c("sex", "age", "shock_T0", "MV_T0", "SOFA", "MAP", "WBC", "PLT", "creatinine", "VIS2020", "NEU", "LYM", "bilirubin_total", "NLR", "SII", "weight", "CRP", "PF_ratio", "PCT", "APACHE2", "shock_dur_T0_first_end", "ICU_dur_T0_first_end", "MV_dur_T0_first_end", "lactate", "fibrinogen", "aPTT")
+predictors <- c(
+  "sex",
+  "age",
+  "shock_T0",
+  "MV_T0",
+  "SOFA",
+  "MAP",
+  "WBC",
+  "PLT",
+  "creatinine",
+  "VIS2020",
+  "NEU",
+  "LYM",
+  "bilirubin_total",
+  "NLR",
+  "SII",
+  "weight",
+  "CRP",
+  "PF_ratio",
+  "PCT",
+#  "shock_dur_T0_first_end",
+#  "ICU_dur_T0_first_end",
+#  "MV_dur_T0_first_end",
+  "lactate",
+  "fibrinogen",
+  "aPTT"
+)
 
 all_results <- lapply(time_points, function(tp) {
   data_tp <- sepsis_HA_df_analyze %>% filter(time_point == tp)
   
   results <- lapply(predictors, function(var) {
-    formula <- as.formula(paste("ICU_first_end_status ~", var, "+ combined_efferon"))
+    formula <- as.formula(paste("ICU_first_end_status ~", var, "+ combined_efferon + study_id"))
     model <- glm(formula, data = data_tp, family = binomial)
     
     summary <- summary(model)$coefficients[2, ]
@@ -190,27 +301,36 @@ all_results <- lapply(time_points, function(tp) {
       conf.low = conf_int[1],
       conf.high = conf_int[2],
       p.value = summary[4],
-      time_point = tp)
+      time_point = tp
+    )
   })
-  bind_rows(results)})
+  bind_rows(results)
+})
 
 all_results_df <- bind_rows(all_results)
 all_results_df <- all_results_df %>%
-  mutate(significance = case_when(p.value < 0.001 ~ "***", p.value < 0.01 ~ "**", p.value < 0.05 ~ "*", TRUE ~ ""))
+  filter(time_point == 0) %>%
+  mutate (p_adj = p.adjust(p.value, method = "BH")) %>%
+  mutate(significance = case_when(p_adj < 0.001 ~ "***", p_adj < 0.01 ~ "**", p_adj < 0.05 ~ "*", TRUE ~ ""))
 
 # forest_data_time_point_0
 forest_data_time_point_0 <- all_results_df %>%
-  filter(time_point == 0) %>%
   mutate(
     odds_ratio = exp(estimate),
     conf.low = exp(conf.low),
-    conf.high = exp(conf.high))
+    conf.high = exp(conf.high)
+  )
 
 label_text <- cbind(
   Variable = forest_data_time_point_0$variable,
   OR = sprintf("%.2f", forest_data_time_point_0$odds_ratio),
-  CI = sprintf("[%.2f, %.2f]", forest_data_time_point_0$conf.low, forest_data_time_point_0$conf.high),
-  Significance = forest_data_time_point_0$significance)
+  CI = sprintf(
+    "[%.2f, %.2f]",
+    forest_data_time_point_0$conf.low,
+    forest_data_time_point_0$conf.high
+  ),
+  Significance = forest_data_time_point_0$significance
+)
 
 forestplot(
   labeltext = label_text,
@@ -219,44 +339,55 @@ forestplot(
   upper = forest_data_time_point_0$conf.high,
   is.summary = FALSE,
   xlab = "Odds Ratio (95% CI)",
-  zero = 1, boxsize = 0.3,
-  col = fpColors(box = "blue", line = "darkblue", zero = "red"),
+  zero = 1,
+  boxsize = 0.3,
+  col = fpColors(
+    box = "blue",
+    line = "darkblue",
+    zero = "red"
+  ),
   title = "Forest plot (variables without log-transformation)",
-  txt_gp = fpTxtGp(xlab = gpar(fontsize = 20), ticks = gpar(fontsize = 20)))
+  txt_gp = fpTxtGp(xlab = gpar(fontsize = 20), ticks = gpar(fontsize = 20))
+)
+
 ```
 
 ### Variables with log-transformation
-
-Statistically significant predictors of death: sex, age, MV_T0, SOFA, ***+creatinine***, VIS2020, APACHE2, ***+shock_dur_T0_first_end, +MV_dur_T0_first_end***, lactate.
-
-1.  **sex**: Male have 2.01 times higher odds of death compared to female.
-
-2.  **age**: For every additional year of age, the odds of death increase by 4% (OR = 1.04).
-
-3.  **MV_T0**: Being on mechanical ventilation substantially increases the risk of death (2.56 times higher odds).
-
-4.  **SOFA**: Higher SOFA scores are strongly associated with increased mortality risk. Each one-point increase in the SOFA score is associated with a 21% increase in the odds of death (OR = 1.21).
-
-5.  **creatinine**:Higher **log-transformed** creatinine levels are significantly associated with increased mortality risk. Each one-unit increase in the log-transformed creatinine value corresponds to 1.74 times higher odds of death (OR = 1.74).
-
-6.  **VIS2020**: **Log-transformed** VIS2020 values are significantly associated with mortality risk. A one-unit increase in the log-transformed VIS2020 is linked to a 17% increase in the odds of death (OR = 1.17).
-
-7.  **APACHE2**: Higher APACHE2 scores are significant predictors of increased mortality. Each one-point increase in the APACHE2 score increases the odds of death by 17% (OR = 1.17).
-
-8.  **shock_dur_T0_first_end**: **The log-transformed** duration of shock is significantly associated with increased mortality risk. Each one-unit increase in the log-transformed shock duration results in 1.42 times higher odds of death (OR = 1.42).
-
-9.  **MV_dur_T0_first_end**: **Log-transformed** duration of mechanical ventilation is significantly associated with increased mortality risk. A one-unit increase in the log-transformed mechanical ventilation duration corresponds to 1.40 times higher odds of death (OR = 1.40).
-
-10. **lactate**: **Log-transformed** lactate levels show the strongest association with mortality risk. A one-unit increase in the log-transformed lactate is associated with 3.52 times higher odds of death (OR = 3.52).
 
 ```{r, fig.width=8, fig.height=8}
 sepsis_HA_df_analyze_log$ICU_first_end_status <- relevel(sepsis_HA_df_analyze_log$ICU_first_end_status, ref = "recovery") # baseline category recovery
 sepsis_HA_df_analyze_log$sex <- relevel(sepsis_HA_df_analyze_log$sex, ref = "female") # baseline category female
 
-predictors <- c("sex", "age", "shock_T0", "MV_T0", "SOFA", "MAP", "WBC", "PLT", "creatinine", "VIS2020", "NEU", "LYM", "bilirubin_total", "NLR", "SII", "weight", "CRP", "PF_ratio", "PCT", "APACHE2", "shock_dur_T0_first_end", "ICU_dur_T0_first_end", "MV_dur_T0_first_end", "lactate", "fibrinogen", "aPTT")
+predictors <- c(
+  "sex",
+  "age",
+  "shock_T0",
+  "MV_T0",
+  "SOFA",
+  "MAP",
+  "WBC",
+  "PLT",
+  "creatinine",
+  "VIS2020",
+  "NEU",
+  "LYM",
+  "bilirubin_total",
+  "NLR",
+  "SII",
+  "weight",
+  "CRP",
+  "PF_ratio",
+  "PCT",
+#  "shock_dur_T0_first_end",
+#  "ICU_dur_T0_first_end",
+#  "MV_dur_T0_first_end",
+  "lactate",
+  "fibrinogen",
+  "aPTT"
+)
 
 results_log <- lapply(predictors, function(var) {
-  formula <- as.formula(paste("ICU_first_end_status ~", var, "+ combined_efferon"))
+  formula <- as.formula(paste("ICU_first_end_status ~", var, "+ combined_efferon + study_id"))
   model <- glm(formula, data = sepsis_HA_df_analyze_log, family = binomial)
   
   summary <- summary(model)$coefficients[2, ]
@@ -267,19 +398,30 @@ results_log <- lapply(predictors, function(var) {
     estimate = summary[1],
     conf.low = conf_int[1],
     conf.high = conf_int[2],
-    p.value = summary[4])
+    p.value = summary[4]
+  )
 })
 
 results_log_df <- bind_rows(results_log)
 results_log_df <- results_log_df %>%
-  mutate(significance = case_when(p.value < 0.001 ~ "***", p.value < 0.01 ~ "**", p.value < 0.05 ~ "*", TRUE ~ "")) %>%
-  mutate(odds_ratio = exp(estimate), conf.low = exp(conf.low), conf.high = exp(conf.high))
+  mutate (p_adj = p.adjust(p.value, method = "BH")) %>%
+  mutate(significance = case_when(p_adj < 0.001 ~ "***", p_adj < 0.01 ~ "**", p_adj < 0.05 ~ "*", TRUE ~ "")) %>%
+  mutate(
+    odds_ratio = exp(estimate),
+    conf.low = exp(conf.low),
+    conf.high = exp(conf.high)
+  )
 
 label_text_log <- cbind(
   Variable = results_log_df$variable,
   OR = sprintf("%.2f", results_log_df$odds_ratio),
-  CI = sprintf("[%.2f, %.2f]", results_log_df$conf.low, results_log_df$conf.high),
-  Significance = results_log_df$significance)
+  CI = sprintf(
+    "[%.2f, %.2f]",
+    results_log_df$conf.low,
+    results_log_df$conf.high
+  ),
+  Significance = results_log_df$significance
+)
 
 forestplot(
   labeltext = label_text_log,
@@ -288,24 +430,32 @@ forestplot(
   upper = results_log_df$conf.high,
   is.summary = FALSE,
   xlab = "Odds Ratio (95% CI)",
-  zero = 1, boxsize = 0.3,
-  col = fpColors(box = "blue", line = "darkblue", zero = "red"),
+  zero = 1,
+  boxsize = 0.3,
+  col = fpColors(
+    box = "blue",
+    line = "darkblue",
+    zero = "red"
+  ),
   title = "Forest plot (variables with log-transformation)",
-  txt_gp = fpTxtGp(xlab = gpar(fontsize = 20), ticks = gpar(fontsize = 20)))
-
+  txt_gp = fpTxtGp(xlab = gpar(fontsize = 20), ticks = gpar(fontsize = 20))
+)
 ```
 
 ## Multivariate Analysis
 
 ### Variables without log-transformation
 
-Elevated lactate levels statistically significant increase the odds of death. Variables such as combined_efferon, sex, age, MV_T0, SOFA, VIS2020, and APACHE2 did not show a statistically significant association with mortality in this model.
-
 ```{r, fig.width=8, fig.height=8}
 sepsis_HA_df_analyze_time_point_0 <- sepsis_HA_df_analyze %>%
   filter(time_point == 0)
-  
-multivariate_model <- glm(ICU_first_end_status ~ combined_efferon + sex + age + MV_T0 + SOFA + VIS2020 + APACHE2 + lactate, data = sepsis_HA_df_analyze_time_point_0, family = binomial)
-summary(multivariate_model)
+
+multivariate_model <- glm(
+  ICU_first_end_status ~ combined_efferon + sex + age + MV_T0 + SOFA + VIS2020 + lactate,
+  data = sepsis_HA_df_analyze_time_point_0,
+  family = binomial
+)
+
 check_model(multivariate_model)
 ```
+
