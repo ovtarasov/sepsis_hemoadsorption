@@ -17,7 +17,6 @@ _oleg/
 *.bak
 
 # Project file
-project.Rproj
 .Rprofile
 renv/
 
