@@ -50,7 +50,7 @@ The dataset underwent initial data cleaning, with all studies and variables reta
 ## Loading the Cleaned Dataset sepsis_HA_df_cleaned
 
 ```{r}
-sepsis_HA_df_cleaned <- readRDS("sepsis_HA_df_cleaned.rds")
+sepsis_HA_df_cleaned <- readRDS("joint_sepsis.rds")
 ```
 
 ## Table 0. Comparative Analysis of Clinical Studies at Time Point 0
@@ -188,21 +188,21 @@ sepsis_HA_df_cleaned_time_point_0 %>% select(everything(), -c(study_id, study_pa
 ```{r}
 Study_B <-
   sepsis_HA_df_cleaned %>% filter(time_point == 0) %>% filter(study_id == "L_mSep_2dC_11") %>%
-    select(c(combined_efferon, SOFA, MAP, VIS2020, PF_ratio, lactate, WBC, NEU, LYM, PLT, aPTT, age))
+    select(c(combined_efferon, SOFA, MAP, VIS2020, PF_ratio, lactate, WBC, NEU, LYM, PLT, aPTT, age, SI_CISCIO))
 
 Study_C <-
   sepsis_HA_df_cleaned %>% filter(time_point == 0) %>% filter(study_id == "CL_Sep_3C_6") %>%
-    select(c(combined_efferon, SOFA, APACHE2, MAP, VIS2020, IL_6, PF_ratio, WBC, NEU, LYM, PLT, age, BMI))
+    select(c(combined_efferon, SOFA, APACHE2, MAP, VIS2020, IL_6, PF_ratio, WBC, NEU, LYM, PLT, age, BMI, SI_CISCIO))
 
 Study_D <-
   sepsis_HA_df_cleaned %>% filter(time_point == 0) %>% filter(study_id == "L_Sep_2dC_7") %>%
-    select(c(combined_efferon, SOFA, MAP, VIS2020, PF_ratio, lactate, WBC, NEU, LYM, PLT, aPTT, age))
+    select(c(combined_efferon, SOFA, MAP, VIS2020, PF_ratio, lactate, WBC, NEU, LYM, PLT, aPTT, age, SI_CISCIO))
 
-Study_B_MANOVA <- manova(cbind(SOFA, MAP, VIS2020, PF_ratio, lactate, WBC, NEU, LYM, PLT, aPTT, age) ~ combined_efferon, data = Study_B)
+Study_B_MANOVA <- manova(cbind(SOFA, MAP, VIS2020, PF_ratio, lactate, WBC, NEU, LYM, PLT, aPTT, age, SI_CISCIO) ~ combined_efferon, data = Study_B)
 
-Study_C_MANOVA <- manova(cbind(SOFA, APACHE2, MAP, VIS2020, IL_6, PF_ratio, WBC, NEU, LYM, PLT, age, BMI) ~ combined_efferon, data = Study_C)
+Study_C_MANOVA <- manova(cbind(SOFA, APACHE2, MAP, VIS2020, IL_6, PF_ratio, WBC, NEU, LYM, PLT, age, BMI, SI_CISCIO) ~ combined_efferon, data = Study_C)
 
-Study_D_MANOVA <- manova(cbind(SOFA, MAP, VIS2020, PF_ratio, lactate, WBC, NEU, LYM, PLT, aPTT, age) ~ combined_efferon, data = Study_D)
+Study_D_MANOVA <- manova(cbind(SOFA, MAP, VIS2020, PF_ratio, lactate, WBC, NEU, LYM, PLT, aPTT, age, SI_CISCIO) ~ combined_efferon, data = Study_D)
 
 check_reject_h0 <- function(model) {p_value <- summary(model, test = "Pillai")$stats[1, "Pr(>F)"]
   if (p_value > 0.05) {cat("Reject H0: No (p-value =", round(p_value, 4),")\n")} else {cat("Reject H0: Yes (p-value =", round(p_value, 4),")\n")}}
