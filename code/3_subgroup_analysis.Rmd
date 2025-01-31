@@ -21,7 +21,7 @@ library(tidyr)
 ### Loading and preparing data for analysis
 
 ```{r}
-analysis_data <- readRDS("C:/Users/user-1/Downloads/joint_sepsis.rds") %>%
+analysis_data <- readRDS("C:/Users/krine/Downloads/Telegram Desktop/joint_sepsis.rds") %>%
   filter(shock_T0 == TRUE) %>%
   mutate(unique_patient_id = paste(study_id, study_patient_id, sep = "_"),
          treatment = combined_efferon)
@@ -51,6 +51,9 @@ analysis_data <- analysis_data %>%
 ### Linear model for all variables
 
 ```{r}
+analysis_data_scaled <- analysis_data %>%
+  mutate(across(where(is.numeric), scale))
+
 
 base_covariates <- c("SOFA", "NLR", "age", "SI_CISCIO", "sex")
 vars <- c("weight", "height", "BMI", "APACHE2", "MAP", "PF_ratio", "lactate", "VIS2020", "WBC", "NEU", "LYM", "PLT", "SII", "aPTT", "fibrinogen", "creatinine", "bilirubin_total", "CRP", "PCT", "IL_6", "infection_g_negative", "infection_g_positive", "infection_virus", "infection_fungi", "hospt_quality_level", "source_cat","SI_CISCIO")
@@ -63,7 +66,7 @@ run_lm_sofa <- function(var, data) {
   return(tidy(fit))
 }
 
-lm_results <- lapply(vars, function(v) run_lm_sofa(v, analysis_data))
+lm_results <- lapply(vars, function(v) run_lm_sofa(v, analysis_data_scaled))
 
 lm_results_df <- bind_rows(setNames(lm_results, vars), .id = "model_var")
 
@@ -164,7 +167,7 @@ forestplot(
   xlab = "Regression Coefficient (95% CI)",
   zero = 0, boxsize = 0.3,
   col = fpColors(box = "blue", line = "darkblue", zero = "red"),
-  title = "Forest plot (Numerical Variables)",
+  title = "Forest plot (Scaled Numerical Variables)",
   txt_gp = fpTxtGp(xlab = gpar(fontsize = 20), ticks = gpar(fontsize = 20))
 )
 ```
