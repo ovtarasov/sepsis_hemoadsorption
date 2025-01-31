@@ -145,31 +145,54 @@ label_text_num <- cbind(
 
 ```{r, fig.height=6}
 
+png(
+  filename = "../figures/CategoryForestGroup.png",
+  width    = 9.7,
+  height   = 6,
+  units    = "in",
+  res      = 300
+)
+
 forestplot(
   labeltext = label_text_cat,
-  mean = df_cat$estimate,
-  lower = df_cat$conf.low,
-  upper = df_cat$conf.high,
+  mean      = df_cat$estimate,
+  lower     = df_cat$conf.low,
+  upper     = df_cat$conf.high,
   is.summary = FALSE,
-  xlab = "Regression Coefficient (95% CI)",
-  zero = 0, boxsize = 0.3,
-  col = fpColors(box = "blue", line = "darkblue", zero = "red"),
-  title = "Forest plot (Categorical Variables)",
-  txt_gp = fpTxtGp(xlab = gpar(fontsize = 20), ticks = gpar(fontsize = 20))
+  xlab      = "Regression Coefficient (95% CI)",
+  zero      = 0, 
+  boxsize   = 0.3,
+  col       = fpColors(box = "blue", line = "darkblue", zero = "red"),
+  title     = "Forest plot (Categorical Variables)",
+  txt_gp    = fpTxtGp(xlab = gpar(fontsize = 20), ticks = gpar(fontsize = 20))
+)
+
+dev.off()
+
+png(
+  filename = "../figures/NumericForestGroup.png",
+  width    = 9.7,
+  height   = 6,
+  units    = "in",
+  res      = 300
 )
 
 forestplot(
   labeltext = label_text_num,
-  mean = df_num$estimate,
-  lower = df_num$conf.low,
-  upper = df_num$conf.high,
+  mean      = df_num$estimate,
+  lower     = df_num$conf.low,
+  upper     = df_num$conf.high,
   is.summary = FALSE,
-  xlab = "Regression Coefficient (95% CI)",
-  zero = 0, boxsize = 0.3,
-  col = fpColors(box = "blue", line = "darkblue", zero = "red"),
-  title = "Forest plot (Scaled Numerical Variables)",
-  txt_gp = fpTxtGp(xlab = gpar(fontsize = 20), ticks = gpar(fontsize = 20))
+  xlab      = "Regression Coefficient (95% CI)",
+  zero      = 0, 
+  boxsize   = 0.3,
+  col       = fpColors(box = "blue", line = "darkblue", zero = "red"),
+  title     = "Forest plot (Scaled Numerical Variables)",
+  txt_gp    = fpTxtGp(xlab = gpar(fontsize = 20), ticks = gpar(fontsize = 20))
 )
+
+dev.off()
+
 ```
 
 
