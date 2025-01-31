@@ -10,6 +10,7 @@ knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, error = FAL
 
 library(tidyverse)
 library(broom)
+library (gt)
 library(performance)
 library(ggResidpanel)
 library(forestplot)
@@ -474,6 +475,32 @@ multivariate_model <- glm(
   data = sepsis_HA_df_analyze_time_point_0,
   family = binomial
 )
+
+summary (multivariate_model)
+
+tidy_multivariate <- tidy(multivariate_model, conf.int = TRUE)
+
+tidy_multivariate %>%
+  mutate(
+    estimate = round(estimate, 3),
+    std.error = round(std.error, 3),
+    conf.low = round(conf.low, 3),
+    conf.high = round(conf.high, 3),
+    p.value = ifelse(p.value < 0.001, "<0.001", round(p.value, 3))
+  ) %>%
+  select(term, estimate, std.error, conf.low, conf.high, p.value) %>%
+  gt() %>%
+  tab_header(title = "Multivariate Logistic Regression Analysis") %>%
+  cols_label(
+    term = "Predictor",
+    estimate = "Estimate (β)",
+    std.error = "Std. Error",
+    conf.low = "95% CI (Lower)",
+    conf.high = "95% CI (Upper)",
+    p.value = "p-value"
+  ) %>%
+  fmt_missing(columns = everything(), missing_text = "-") %>%
+  tab_options(table.font.size = "medium")
 
 check_model(multivariate_model)
 ```
