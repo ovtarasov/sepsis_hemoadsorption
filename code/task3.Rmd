@@ -1,0 +1,126 @@
+---
+title: "Untitled"
+author: "Oleg Tarasov"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+# Set default chunk options
+
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = TRUE)
+
+# Set working folders
+
+here::i_am("code/task3.Rmd")
+
+path_to_scripts = "code/scripts"
+path_to_data = "data"
+path_to_figures = "figures"
+
+# Load required libraries
+
+library(tidyverse)
+library(ggpubr)
+library(knitr)
+library(tidycmprsk)
+library(ggsurvfit)
+library(survival)
+library(survminer)
+library(gtsummary)
+```
+
+```{r}
+sepsis_HA_df_joint <- readRDS(here::here(path_to_data, "/processed/joint_sepsis.rds"))
+
+icu_single_event_joint <- sepsis_HA_df_joint %>%
+		filter(time_point == 0) %>%
+		mutate(ICU_death_status = if_else(ICU_first_end_status == "death" & ICU_dur_T0_first_end <= 30, 1, 0), 
+					 .after = ICU_first_end_status) %>% 
+		mutate(ICU_death_time = if_else(ICU_first_end_status == "death" & ICU_dur_T0_first_end <= 30, ICU_dur_T0_first_end, 30), 
+					 .after = ICU_dur_T0_first_end) %>% 
+		mutate(shock_recovery_status = if_else(shock_first_end_status == "recovery" & shock_dur_T0_first_end <= 30, 1, 0), 
+					 .after =	shock_first_end_status) %>%
+		mutate(shock_recovery_time = if_else(shock_first_end_status == "recovery" & shock_dur_T0_first_end <= 30, shock_dur_T0_first_end, 30), 
+					 .after =	shock_dur_T0_first_end)
+
+str(icu_single_event_joint)
+
+```
+
+```{r}
+model_0 <- coxph(Surv(ICU_death_time, ICU_death_status) ~ combined_efferon, data = icu_single_event_joint) 
+
+model_0 %>% summary
+model_0 %>% tbl_regression(exp = TRUE)
+model_0 %>% ggcoxdiagnostics(type = "schoenfeld")
+model_0 %>% cox.zph() %>% print()
+model_0 %>% cox.zph() %>% ggcoxzph()
+```
+
+Сравнение выживаемости по исследованиям
+
+```{r}
+model_1 <- coxph(Surv(ICU_death_time, ICU_death_status) ~ combined_efferon + study_id, data = icu_single_event_joint) 
+
+model_1 %>% summary
+model_1 %>% tbl_regression(exp = TRUE)
+model_1 %>% ggcoxdiagnostics(type = "schoenfeld")
+model_1 %>% cox.zph() %>% print()
+model_1 %>% cox.zph() %>% ggcoxzph()
+```
+
+```{r}
+model_2 <- coxph(Surv(ICU_death_time, ICU_death_status) ~ combined_efferon + study_id + source_cat + SOFA + SI_CISCIO + age, 
+								 data = icu_single_event_joint) 
+
+model_2 %>% summary
+model_2 %>% tbl_regression(exp = TRUE)
+model_2 %>% ggcoxdiagnostics(type = "schoenfeld")
+model_2 %>% cox.zph() %>% print()
+model_2 %>% cox.zph() %>% ggcoxzph()
+```
+
+```{r}
+model_3 <- coxph(Surv(ICU_death_time, ICU_death_status) ~ combined_efferon*study_id, 
+								 data = icu_single_event_joint[icu_single_event_joint$ICU_death_time <= 30, ]) 
+
+model_3 %>% summary
+model_3 %>% tbl_regression(exp = TRUE)
+model_3 %>% ggcoxdiagnostics(type = "schoenfeld")
+model_3 %>% cox.zph() %>% print()
+model_3 %>% cox.zph() %>% ggcoxzph()
+```
+
+
+Сравнение выхода из шокового состояния по исследованиям
+
+```{r}
+model_5 <- coxph(Surv(shock_recovery_time, shock_recovery_status) ~ combined_efferon + study_id, 
+								 data = icu_single_event_joint[icu_single_event_joint$shock_T0 == "TRUE", ]) 
+model_5 %>% summary
+model_5 %>% tbl_regression(exp = TRUE)
+model_5 %>% ggcoxdiagnostics(type = "schoenfeld")
+model_5 %>% cox.zph() %>% print
+model_5 %>% cox.zph() %>% ggcoxzph()
+```
+```{r}
+data(cancer, package="survival")
+lung
+```
+
+```{r}
+fit_1 <- survfit(model_1, data = data.frame(combined_efferonEfferon = c("Control", "Efferon"), study_id = "L_Sep_2R_4"))
+
+ggsurvplot(fit_1)
+
+ggsurvplot(survfit(model_1, data.frame(combined_efferon = levels(icu_single_event_joint$combined_efferon), study_id = rep(levels(icu_single_event_joint$study_id)[1],2))))
+
+summary(fit_1)
+
+survfit(model_1) %>% summary()
+
+ggsurvplot(survfit(model_1), data = icu_single_event_joint, legend.labs=levels(icu_single_event_joint$combined_efferon)
+
+
+
+```
