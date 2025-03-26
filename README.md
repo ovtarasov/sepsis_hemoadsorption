@@ -1,48 +1,97 @@
-#  Курсовой проект по биостатистике  
+# Impact of Hemoperfusion on Outcomes and Clinical Dynamics in Treatment of Bacterial Sepsis
 
-*Please find description in English [below](#term-project-in-biostatistics)*  
-
-## Описание проекта
-
-Репозиторий содержит материалы курсового проекта, выполняемого в 2024 году при обучении на программе ["Биостатистика и анализ медицинских данных"](https://bioinf.me/education/stat) Института Биоинформатики.  
-
-**Тема проекта:** Оценка влияния гемосорбции на исходы и динамику клинико-лабораторных показателей при лечении пациентов с бактериальным сепсисом.  
-
-## Cтруктура папок
-
-- [abandoned](abandoned/) -- временная папка с личными подпапками `_<name>`  
-- [code](code/) -- весь код; в корне папки -- `*.Rmd` блокноты  
-    - [code/DAG](code/DAG/) -- здесь модель DAG  
-    - [code/scripts](code/scripts/) -- здесь вынесенные отдельно `*.R` скрипты  
-- [data](data/) -- данные **NB! Сами данные не выкладывать!**    
-    - [data/processed](data/processed/) -- то, что получается в ходе нашей работы в формате `*.rds`  
-    - [data/raw](data/raw) -- исходники  
-- [discussions](discussions) -- конспекты наших обсуждений
-- [figures](figures/) -- рисунки  
-- [reports](reports/) -- срендеренные отчеты  
-
-## Участники  
-
-**Команда:**  
-- [Никита Гладышев](https://github.com/Hayrest) (*НИИ морфологии человека им.&nbsp;А.П.&nbsp;Авцына*)  
-- [Анастасия Потамошнева](https://github.com/a-potamoshneva) (*Georg-August-Universität Göttingen*)  
-- [Олег Тарасов](https://github.com/ovtarasov) (*независимый исследователь*)  
-- [Виктория Уварова](https://github.com/UvarovaV) (*Институт полиомиелита им.&nbsp;М.П.&nbsp;Чумакова РАН*)  
-
-**Руководители:**  
-- Александр Попов (*Стартап "Эфферон", Лаборатория сорбционных процессов ИНЭОС РАН*)  
-- Евгений Бакин (*Институт Биоинформатики*)  
-
-# Term project in Biostatistics
-
-## Summary  
-
-This repository contains materials of the term project which was performed at the 2024 Biostatistics educational program of the [Bioinformatics Institute](https://bioinf.me/en).  
-
-*Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.*  
+This repository contains materials of the term project which was performed at the 2024 Biostatistics educational program of the [Bioinformatics Institute](https://bioinf.me/en). 
 
 ## Contributors   
 
 **Students**  
 
+- [Nikita Gladyshev](https://github.com/Hayrest) (*Avtsyn Research Institute of Human Morphology*)  
+- [Anastasiia Potamoshneva](https://github.com/a-potamoshneva) (*Universitätsmedizin Göttingen*)  
+- [Oleg Tarasov](https://github.com/ovtarasov) (*Bioinformatics Institute*)  
+- [Victoria Uvarova](https://github.com/UvarovaV) (*Chumakov Federal Scientific Center for Research and Development of Immune-and-Biological Products of Russian Academy of Sciences (Institute of Poliomyelitis)*)  
+
 **Tutors**  
+
+- Alexander Popov (*Efferon PJSC*)  
+- Evgeny Bakin (*Bioinformatics Institute*) 
+ 
+## Directory structure
+
+- [abandoned](abandoned/) -- temporary folder with personal subfolders named `_<name>`  
+- [code](code/) -- all code; RMarkdown notebooks (`*.Rmd`) are in the root of this folder   
+    - [code/DAG](code/DAG/) -- contains the DAG model 
+    - [code/scripts](code/scripts/) -- separate R scripts (`*.R`)  
+- [data](data/) -- data files **NB! Do not upload actual data!**    
+    - [data/processed](data/processed/) -- intermediate results in `.rds` format   
+    - [data/raw](data/raw) -- raw source data  
+- [discussions](discussions) -- notes from our discussions
+- [figures](figures/) -- figures and visualizations  
+- [reports](reports/) -- rendered reports
+
+## Background
+
+Lipopolysaccharide (LPS), a membrane compound of gram-negative bacteria, triggers the inflammatory response and cytokine production, leading to a "cytokine storm" that drives sepsis severity [1,2]. The Efferon LPS hemoperfusion device employs a multimodal polymeric adsorbent to eliminate LPS and inflammatory mediators. Previous clinical study confirmed its safety and efficacy, showing a significant decrease in early 3-day mortality and improvement in proinflammatory blood markers levels [3,4]. 
+
+**Aim:** To evaluate the efficacy of Efferon hemoperfusion in patients with sepsis.
+
+**Objectives:**
+
+- ● Identify clinical / laboratory parameters most affected by treatment.
+- ● Compare overall survival, rate of septic shock resolution between experimental and control patient groups.
+- ● Identify parameters most associated with mortality.
+- ● Identify patient subgroups associated with higher probability of benefiting from hemoperfusion.
+
+## Data
+
+Data was collected from 5 clinical trials (2019-2024).
+
+![Study design](figures/Study_design.png)
+
+![DAG](figures/DAG_final.jpeg)
+
+Presumable biases:
+
+- ● Allocation bias
+- ● Selection bias
+- ● Confounding bias
+- ● Survival bias
+
+The Last Observation Carried Forward (LOCF) method was applied to address survival bias.
+
+## Results
+
+![MANOVA](figures/MANOVA.png)
+
+MANOVA showed no significant differences in baseline clinical and laboratory parameters between control and experimental groups among studies.
+
+![Impact of treatment on parameters](figures/Treatment_on_parameters_combined.png)
+
+![Predictors of adverse outcomes](figures/Adverse_outcomes_combined.png)
+
+![Cumulative risk of death](figures/Cumulative_death_risk.png)
+
+![High-benefit patient groups](figures/Subgroup_analysis_combined.png)
+
+## Conclusions
+
+1. Analysis revealed that 4 out of 5 studies were comparable in key characteristics, allowing them to be combined for evaluating hemoperfusion effect.
+
+2. Efferon therapy is associated with increased survival in ICU patients diagnosed with shock and receiving mechanical ventilation.
+
+3. Patients with shock who received Efferon therapy demonstrated a faster normalization of vital signs compared to the control group.
+
+4. ICU patient survival depends on age, mechanical ventilation status, SOFA score, and lactate levels.
+
+5. Hemoperfusion with Efferon reduces mortality and increases the chances of shock resolution across all included studies.
+
+## References
+
+1. [Virzì, G.M.; Mattiotti, M.; de Cal, M.; Ronco, C.; Zanella, M.; De Rosa, S. Endotoxin in Sepsis: Methods for LPS Detection and the Use of Omics Techniques. Diagnostics (Basel) 2022, 13, 79, doi:10.3390/diagnostics13010079.](https://doi.org/10.3390/diagnostics13010079)
+2. [Noori, M.S.; Courreges, M.C.; Bergmeier, S.C.; McCall, K.D.; Goetz, D.J. Modulation of LPS-Induced Inflammatory Cytokine Production by a Novel Glycogen Synthase Kinase-3 Inhibitor. Eur J Pharmacol 2020, 883, 173340, doi:10.1016/j.ejphar.2020.173340.](https://doi.org/10.1016/j.ejphar.2020.173340)
+3. [Rey, S.; Kulabukhov, V.M.; Popov, A.; Nikitina, O.; Berdnikov, G.; Magomedov, M.; Kim, T.; Masolitin, S.; Ignatenko, O.; Krotenko, N.; et al. HEMOPERFUSION USING THE LPS-SELECTIVE MESOPOROUS POLYMERIC ADSORBENT IN SEPTIC SHOCK: A MULTICENTER RANDOMIZED CLINICAL TRIAL. Shock 2023, 59, 846, doi:10.1097/SHK.0000000000002121.](https://doi.org/10.1097/SHK.0000000000002138)
+4. [Efferon JSC Lipopolysaccharide Adsorption At Septic Shock with Efferon LPS Extracorporeal Blood Adsorbers; clinicaltrials.gov, 2024;](https://ctv.veeva.com/study/lipopolisaccharide-adsorption-at-septic-shock)
+
+
+
+  
