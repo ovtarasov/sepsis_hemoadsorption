@@ -48,14 +48,7 @@ Data was collected from 5 clinical trials (2019-2024).
 
 ![Study design](figures/Study_design.png)
 
-![DAG](figures/DAG_final_image.png)
-
-Presumable biases:
-
-- ● Allocation bias
-- ● Selection bias
-- ● Confounding bias
-- ● Survival bias
+![DAG](figures/DAG_combined.png)
 
 The Last Observation Carried Forward (LOCF) method was applied to address survival bias.
 
