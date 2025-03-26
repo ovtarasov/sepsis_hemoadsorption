@@ -48,7 +48,7 @@ Data was collected from 5 clinical trials (2019-2024).
 
 ![Study design](figures/Study_design.png)
 
-![DAG](figures/DAG_final.png)
+![DAG](figures/DAG_final_image.png)
 
 Presumable biases:
 
