@@ -285,7 +285,7 @@ log_models_corrected_table <- log_models_corrected  %>%
   mutate(
     p.adj.BH = p.adjust(p.value, method = "BH")) %>% 
   mutate(across(where(is.numeric), ~ round(., 3))) %>% 
-  mutate(significance = case_when(p.value < 0.001 ~ "***", p.value < 0.01 ~ "**", p.value < 0.05 ~ "*", TRUE ~ ""))
+  mutate(significance = case_when(p.adj.BH < 0.001 ~ "***", p.adj.BH < 0.01 ~ "**", p.adj.BH < 0.05 ~ "*", TRUE ~ ""))
 
 datatable(log_models_corrected_table, options = list(pageLength = 10))
 ```
