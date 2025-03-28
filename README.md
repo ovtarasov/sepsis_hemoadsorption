@@ -58,7 +58,7 @@ The Last Observation Carried Forward (LOCF) method was applied to address surviv
 
 MANOVA showed no significant differences in baseline clinical and laboratory parameters between control and experimental groups among studies.
 
-![Impact of treatment on parameters](figures/Treatment_on_parameters_combined.png)
+![Impact of treatment on parameters](figures/Treatment_impact_on_parameters_combined.png)
 
 ![Predictors of adverse outcomes](figures/Adverse_outcomes_combined.png)
 
